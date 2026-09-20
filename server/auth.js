@@ -31,7 +31,8 @@ export async function attachUser(req, _res, next) {
 export const requireAuth = (req, res, next) => (req.user ? next() : res.status(401).json({ error: "Sign in required" }));
 export const requireAdmin = (req, res, next) => (req.user?.role === "admin" ? next() : res.status(403).json({ error: "Admin only" }));
 
-const oauth = (redirectPath) => new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, `${env.SERVER_URL}/api/${redirectPath}`);
+const baseUrl = (env.SERVER_URL || "http://localhost:3000").replace(/\/$/, "");
+const oauth = (redirectPath) => new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, `${baseUrl}/api/${redirectPath}`);
 const uidFrom = (seed) => `u_${seed.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
 
 export const authRouter = Router();

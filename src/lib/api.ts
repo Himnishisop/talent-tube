@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------
 
 export const API_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
-export const isApiConfigured = API_URL.length > 0;
+export const isApiConfigured = true;
 
 const TOKEN_KEY = "tt_api_token";
 export const getToken = () => localStorage.getItem(TOKEN_KEY);

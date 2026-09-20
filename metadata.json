@@ -1,0 +1,6 @@
+{
+  "name": "Talent Tube",
+  "description": "Showcase your talent. Get endless opportunities. Discover performers and creative professionals, watch their work, and connect directly.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

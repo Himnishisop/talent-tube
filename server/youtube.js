@@ -27,7 +27,8 @@ const SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl", "openid", "
 const YT = "https://www.googleapis.com/youtube/v3";
 const DEFAULT_PRIVACY = ["unlisted", "private", "public"].includes(env.YOUTUBE_DEFAULT_PRIVACY) ? env.YOUTUBE_DEFAULT_PRIVACY : "unlisted";
 
-const client = () => new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, `${env.SERVER_URL}/api/youtube/callback`);
+const baseUrl = (env.SERVER_URL || "http://localhost:3000").replace(/\/$/, "");
+const client = () => new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, `${baseUrl}/api/youtube/callback`);
 
 /** Fresh access token for a user's connected channel (auto-refreshed). */
 async function accessTokenFor(uid) {

@@ -65,9 +65,18 @@ export const Report = mongoose.model("Report", ReportSchema);
 export const Photo = mongoose.model("Photo", PhotoSchema);
 export const Video = mongoose.model("Video", VideoSchema);
 
+mongoose.set("bufferCommands", false);
+
 export async function connectDb(uri) {
-  if (!uri) throw new Error("MONGODB_URI is not set in .env");
+  if (!uri) {
+    console.warn("[Talent Tube] MONGODB_URI not set — database features offline");
+    return;
+  }
   mongoose.set("strictQuery", false);
-  await mongoose.connect(uri);
-  console.log("✓ MongoDB connected");
+  try {
+    await mongoose.connect(uri);
+    console.log("✓ MongoDB connected");
+  } catch (err) {
+    console.warn("[Talent Tube] MongoDB connection failed:", err.message);
+  }
 }

@@ -1,5 +1,6 @@
 import type { AppUser, Category, Payment, Report, Talent, TalentFilters } from "@/lib/types";
 import { DEFAULT_CATEGORIES } from "@/lib/constants";
+import { SAMPLE_TALENTS } from "@/lib/sampleData";
 import { api, subscribeEvents } from "@/lib/api";
 import { applyTalentFilters, isPubliclyVisible, type DataProvider } from "./dataProvider";
 
@@ -7,6 +8,7 @@ import { applyTalentFilters, isPubliclyVisible, type DataProvider } from "./data
 // PRODUCTION provider backed by the Node/MongoDB API in ./server.
 // Real-time: one SSE connection; on any "talents" event every subscriber is
 // refreshed, so the App and Web interfaces stay in sync across all devices.
+// Falls back gracefully to sample data if database is empty/offline.
 // ---------------------------------------------------------------------------
 
 /** Compress to ≤320px JPEG so the photo fits comfortably in MongoDB. */
@@ -36,21 +38,39 @@ export class ApiDataProvider implements DataProvider {
   async getUser(uid: string) { return api<AppUser | null>(`/api/users/${uid}`).catch(() => null); }
   async saveUser(user: AppUser) { await api(`/api/users/${user.uid}`, { method: "PUT", json: user }); }
 
-  async getTalent(id: string) { return api<Talent | null>(`/api/talents/${id}`).catch(() => null); }
-  async listPublicTalents(filters?: TalentFilters) {
-    const [list, cats] = await Promise.all([api<Talent[]>("/api/talents"), this.listCategories()]);
-    return applyTalentFilters(list.filter(isPubliclyVisible), filters, cats);
+  async getTalent(id: string) {
+    const remote = await api<Talent | null>(`/api/talents/${id}`).catch(() => null);
+    if (remote) return remote;
+    return SAMPLE_TALENTS.find((t) => t.id === id) ?? null;
   }
-  async listAllTalents() { return api<Talent[]>("/api/talents?all=1"); }
+  async listPublicTalents(filters?: TalentFilters) {
+    let list: Talent[] = [];
+    try {
+      list = await api<Talent[]>("/api/talents");
+    } catch {
+      list = [];
+    }
+    const cats = await this.listCategories();
+    const data = list && list.length > 0 ? list : SAMPLE_TALENTS;
+    return applyTalentFilters(data.filter(isPubliclyVisible), filters, cats);
+  }
+  async listAllTalents() {
+    const list = await api<Talent[]>("/api/talents?all=1").catch(() => []);
+    return list && list.length > 0 ? list : SAMPLE_TALENTS;
+  }
   async saveTalent(talent: Talent) { await api(`/api/talents/${talent.id}`, { method: "PUT", json: talent }); this.emit(); }
   async updateTalent(id: string, patch: Partial<Talent>) { await api(`/api/talents/${id}`, { method: "PATCH", json: patch }); this.emit(); }
   async deleteTalent(id: string) { await api(`/api/talents/${id}`, { method: "DELETE" }); this.emit(); }
 
   async listCategories() {
     if (this.categoriesCache) return this.categoriesCache;
-    const list = await api<Category[]>("/api/categories");
-    if (list.length === 0) {
-      // First run: an admin seeds the defaults; everyone else uses them locally.
+    let list: Category[] = [];
+    try {
+      list = await api<Category[]>("/api/categories");
+    } catch {
+      list = [];
+    }
+    if (!list || list.length === 0) {
       try { await api("/api/categories/seed", { method: "POST", json: DEFAULT_CATEGORIES }); } catch { /* not admin */ }
       this.categoriesCache = DEFAULT_CATEGORIES;
       return DEFAULT_CATEGORIES;
