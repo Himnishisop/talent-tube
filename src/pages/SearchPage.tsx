@@ -104,11 +104,22 @@ export function SearchPage() {
   return (
     <div className="animate-fade-up">
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div><p className="section-kicker">The right talent changes everything</p><h1 className="page-title">Find your standout.</h1><p className="mt-3 text-sm leading-relaxed text-muted">Explore creative professionals by skill, location, and experience.</p></div>
-        <span className={`live-badge ${pulse ? "live-badge--pulse" : ""}`} title="Connected to the shared database. New artists appear instantly.">
-          <Radio className="h-3.5 w-3.5" /> Live
-          {lastUpdate && <span className="text-muted">· updated {new Date(lastUpdate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>}
-        </span>
+        <div>
+          <p className="section-kicker">The right talent changes everything</p>
+          <h1 className="page-title">Find your standout.</h1>
+          <p className="mt-3 text-sm leading-relaxed text-muted">
+            Explore creative professionals by skill, location, and experience. Direct contact via Phone &amp; WhatsApp — no sign-in or account required.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-panel px-3 py-1.5 text-xs font-semibold text-silver">
+            <span className="h-2 w-2 rounded-full bg-emerald-400" /> Free direct contact (no sign-in)
+          </span>
+          <span className={`live-badge ${pulse ? "live-badge--pulse" : ""}`} title="Connected to the shared database. New artists appear instantly.">
+            <Radio className="h-3.5 w-3.5" /> Live
+            {lastUpdate && <span className="text-muted">· updated {new Date(lastUpdate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>}
+          </span>
+        </div>
       </div>
       {/* Search bar */}
       <form

@@ -118,6 +118,7 @@ export function TalentProfilePage() {
               <div className="mt-5 hidden gap-2 md:grid">
                 <a href={`tel:+${toIntl(talent.mobile)}`}><Button full size="lg" icon={<Phone className="h-5 w-5" />}>{t("callTalent")}</Button></a>
                 <a href={`https://wa.me/${toIntl(talent.whatsapp)}?text=${waText}`} target="_blank" rel="noreferrer"><Button full size="lg" variant="whatsapp" icon={<MessageCircle className="h-5 w-5" />}>{t("whatsappTalent")}</Button></a>
+                <p className="mt-1 text-center text-[11px] text-muted">Direct contact &middot; No sign-in required &middot; Zero commission</p>
               </div>
 
               <div className="mt-4 flex justify-between text-xs">
@@ -160,9 +161,15 @@ export function TalentProfilePage() {
       </div>
 
       {/* Mobile sticky contact bar */}
-      <div className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-2 gap-2 border-t border-line bg-canvas/95 p-3 backdrop-blur-xl md:hidden" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}>
-        <a href={`tel:+${toIntl(talent.mobile)}`}><Button full size="lg" icon={<Phone className="h-5 w-5" />}>{t("callTalent")}</Button></a>
-        <a href={`https://wa.me/${toIntl(talent.whatsapp)}?text=${waText}`} target="_blank" rel="noreferrer"><Button full size="lg" variant="whatsapp" icon={<MessageCircle className="h-5 w-5" />}>WhatsApp</Button></a>
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-canvas/95 p-2.5 backdrop-blur-xl md:hidden" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)" }}>
+        <div className="mb-1.5 flex items-center justify-center gap-1.5 text-[10px] font-medium text-muted">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          <span>Direct contact &middot; No sign-in needed</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <a href={`tel:+${toIntl(talent.mobile)}`}><Button full size="lg" icon={<Phone className="h-5 w-5" />}>{t("callTalent")}</Button></a>
+          <a href={`https://wa.me/${toIntl(talent.whatsapp)}?text=${waText}`} target="_blank" rel="noreferrer"><Button full size="lg" variant="whatsapp" icon={<MessageCircle className="h-5 w-5" />}>WhatsApp</Button></a>
+        </div>
       </div>
 
       {reportOpen && <ReportDialog talent={talent} reporterUid={user?.uid} onClose={() => setReportOpen(false)} />}

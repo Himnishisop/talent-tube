@@ -122,7 +122,7 @@ export function HomePage() {
           {[
             { title: "Find your match", description: "Explore by skill, specialty, and location to find the right person for your vision." },
             { title: "See the talent", description: "Watch their YouTube showreel and get a feel for their style before reaching out." },
-            { title: "Make it happen", description: "Connect directly by phone or WhatsApp. Your conversation, your terms, no middleman." },
+            { title: "Make it happen", description: "Connect directly by phone or WhatsApp. No sign-in needed, no middleman, zero booking fees." },
           ].map((item, index) => <li key={item.title}><span className="step-number">0{index + 1}</span><h3>{item.title}</h3><p>{item.description}</p></li>)}
         </ol>
       </section>

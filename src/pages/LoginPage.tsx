@@ -1,12 +1,11 @@
 import { useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Mic2, ShoppingBag } from "lucide-react";
+import { Search } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useLang } from "@/context/LangContext";
 import type { UserRole } from "@/lib/types";
 import { Button, Field, Input } from "@/components/ui";
 import { isDemoMode } from "@/services";
-import { cn } from "@/utils/cn";
 
 export function LoginPage() {
   const { t } = useLang();
@@ -17,7 +16,6 @@ export function LoginPage() {
   const from = navState.from;
 
   const [mode, setMode] = useState<"login" | "signup">(navState.mode ?? "login");
-  const [role, setRole] = useState<UserRole>(navState.role ?? "customer");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,7 +29,7 @@ export function LoginPage() {
     setError("");
     setBusy(true);
     try {
-      const u = mode === "login" ? await signInWithEmail(email, password) : await signUpWithEmail(email, password, name, role);
+      const u = mode === "login" ? await signInWithEmail(email, password) : await signUpWithEmail(email, password, name, "talent");
       go(u.role);
     } catch (err) {
       setError(friendly(err));
@@ -43,7 +41,7 @@ export function LoginPage() {
   const google = async () => {
     setBusy(true);
     try {
-      const u = await signInWithGoogle(role);
+      const u = await signInWithGoogle("talent");
       go(u.role);
     } catch (err) {
       setError(friendly(err));
@@ -54,31 +52,36 @@ export function LoginPage() {
 
   return (
     <div className="mx-auto max-w-md animate-fade-up">
+      {/* Searchers reassurance banner */}
+      <div className="mb-6 rounded-2xl border border-neon/30 bg-panel p-5 text-xs shadow-sm">
+        <div className="flex items-center gap-2 font-bold text-heading text-sm mb-1.5">
+          <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
+          Looking to find or hire talent?
+        </div>
+        <p className="text-muted leading-relaxed mb-3.5">
+          No sign-in or account is required for searchers and recruiters. You can freely explore artists, watch showreels, and directly call or WhatsApp them for free.
+        </p>
+        <Link
+          to="/search"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-neon px-4 py-2 font-bold text-canvas hover:bg-neon/90 transition text-xs shadow"
+        >
+          <Search className="h-3.5 w-3.5" />
+          Browse & Search Talent (No Sign-in)
+        </Link>
+      </div>
+
       <div className="rounded-xl border border-line bg-panel p-6 sm:p-8">
-        <p className="section-kicker">A stage for your next chapter</p>
-        <h1 className="font-display text-3xl font-medium tracking-tight">{mode === "login" ? "Welcome back." : "Make your next move."}</h1>
-        <p className="mt-3 text-sm text-muted">{t("signInToContinue")}</p>
+        <p className="section-kicker">For creators & artists</p>
+        <h1 className="font-display text-2xl font-bold tracking-tight">
+          {mode === "login" ? "Artist & Creator Sign In" : "Create Artist Profile"}
+        </h1>
+        <p className="mt-2 text-xs text-muted">
+          {mode === "login"
+            ? "Sign in to manage your creator profile, showreels, and membership."
+            : "Join Talent Tube to showcase your talent, publish videos, and receive direct enquiries."}
+        </p>
 
-        {mode === "signup" && (
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {(["customer", "talent"] as UserRole[]).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRole(r)}
-                className={cn(
-                  "flex flex-col items-center gap-2 rounded-lg border p-4 text-xs font-semibold transition",
-                  role === r ? "border-brand-600 bg-brand-50 text-brand-800" : "border-slate-200 text-slate-600"
-                )}
-              >
-                {r === "talent" ? <Mic2 className="h-6 w-6" /> : <ShoppingBag className="h-6 w-6" />}
-                {r === "talent" ? t("talent") : t("customer")}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <form onSubmit={submit} className="mt-4 space-y-3">
+        <form onSubmit={submit} className="mt-5 space-y-3">
           {mode === "signup" && (
             <Field label={t("fullName")} required>
               <Input value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" />

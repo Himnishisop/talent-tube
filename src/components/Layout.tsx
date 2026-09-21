@@ -44,9 +44,9 @@ export function Layout() {
     { to: "/search", label: t("search"), icon: Search },
     isAdmin
       ? { to: "/admin", label: "Admin", icon: ShieldCheck }
-      : user?.role === "talent"
-        ? { to: "/dashboard", label: t("dashboard"), icon: LayoutDashboard }
-        : { to: user ? "/register" : "/login", label: user ? "Your profile" : "Sign in", icon: UserRound },
+      : user
+        ? { to: "/dashboard", label: "Studio", icon: LayoutDashboard }
+        : { to: "/register", label: "For Artists", icon: UserRound },
   ];
 
   return (
@@ -87,7 +87,7 @@ export function Layout() {
               </button>
             ) : (
               <Link to="/login" className="hidden h-11 items-center text-[13px] font-semibold text-silver hover:text-heading sm:flex">
-                {t("login")}
+                Artist Login
               </Link>
             )}
             <Link to={user ? "/dashboard" : "/register"} className="button-primary inline-flex h-11 items-center justify-center gap-2 rounded-md px-3 text-[11px] font-bold sm:px-5 sm:text-[13px]">
