@@ -8,11 +8,12 @@ import { OAuth2Client } from "google-auth-library";
 import { User } from "./db.js";
 
 const env = process.env;
+const JWT_SECRET = env.JWT_SECRET || "talent-tube-jwt-secret-fallback-token-key-2026";
 const ADMIN_EMAILS = (env.ADMIN_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 const TOKEN_TTL = "30d";
 
 export const isAdminEmail = (email) => !!email && ADMIN_EMAILS.includes(email.toLowerCase());
-export const signToken = (user) => jwt.sign({ uid: user.uid, role: user.role }, env.JWT_SECRET, { expiresIn: TOKEN_TTL });
+export const signToken = (user) => jwt.sign({ uid: user.uid, role: user.role }, JWT_SECRET, { expiresIn: TOKEN_TTL });
 export const publicUser = (u) => ({ uid: u.uid, role: u.role, displayName: u.displayName, email: u.email, phone: u.phone, photoURL: u.photoURL, createdAt: u.createdAt });
 
 /** Attaches req.user (may be null). */
@@ -22,7 +23,7 @@ export async function attachUser(req, _res, next) {
   req.user = null;
   if (token) {
     try {
-      const { uid } = jwt.verify(token, env.JWT_SECRET);
+      const { uid } = jwt.verify(token, JWT_SECRET);
       req.user = await User.findOne({ uid }).lean();
     } catch { /* invalid/expired token → anonymous */ }
   }
@@ -31,8 +32,19 @@ export async function attachUser(req, _res, next) {
 export const requireAuth = (req, res, next) => (req.user ? next() : res.status(401).json({ error: "Sign in required" }));
 export const requireAdmin = (req, res, next) => (req.user?.role === "admin" ? next() : res.status(403).json({ error: "Admin only" }));
 
-const baseUrl = (env.SERVER_URL || "http://localhost:3000").replace(/\/$/, "");
-const oauth = (redirectPath) => new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, `${baseUrl}/api/${redirectPath}`);
+export const getBaseUrl = (req) => {
+  if (req) {
+    const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
+    const host = req.headers["x-forwarded-host"] || req.headers.host;
+    if (host) return `${proto}://${host}`.replace(/\/$/, "");
+  }
+  return (env.SERVER_URL || "http://localhost:3000").replace(/\/$/, "");
+};
+
+export const oauth = (redirectPath, req) => {
+  const base = getBaseUrl(req);
+  return new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, `${base}/api/${redirectPath}`);
+};
 const uidFrom = (seed) => `u_${seed.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
 
 export const authRouter = Router();
@@ -66,16 +78,17 @@ authRouter.get("/me", attachUser, requireAuth, (req, res) => res.json(publicUser
 
 // ---- Google Sign-In (openid email profile) ---------------------------------
 authRouter.get("/google", (req, res) => {
-  if (!env.GOOGLE_CLIENT_ID) return res.status(500).send("GOOGLE_CLIENT_ID is not configured");
-  const state = Buffer.from(JSON.stringify({ redirect: req.query.redirect ?? env.CLIENT_ORIGIN, role: req.query.role ?? "customer" })).toString("base64url");
-  const url = oauth("auth/google/callback").generateAuthUrl({ scope: ["openid", "email", "profile"], prompt: "select_account", state });
+  if (!env.GOOGLE_CLIENT_ID) return res.status(500).send("GOOGLE_CLIENT_ID is not configured in environment variables.");
+  const base = getBaseUrl(req);
+  const state = Buffer.from(JSON.stringify({ redirect: req.query.redirect ?? base, role: req.query.role ?? "customer" })).toString("base64url");
+  const url = oauth("auth/google/callback", req).generateAuthUrl({ scope: ["openid", "email", "profile"], prompt: "select_account", state });
   res.redirect(url);
 });
 
 authRouter.get("/google/callback", async (req, res) => {
   try {
     const { redirect, role } = JSON.parse(Buffer.from(String(req.query.state ?? ""), "base64url").toString() || "{}");
-    const client = oauth("auth/google/callback");
+    const client = oauth("auth/google/callback", req);
     const { tokens } = await client.getToken(String(req.query.code));
     const ticket = await client.verifyIdToken({ idToken: tokens.id_token, audience: env.GOOGLE_CLIENT_ID });
     const p = ticket.getPayload();
@@ -87,10 +100,12 @@ authRouter.get("/google/callback", async (req, res) => {
         role: isAdminEmail(email) ? "admin" : role === "talent" ? "talent" : "customer", createdAt: new Date().toISOString(),
       });
     } else if (!user.googleId) { user.googleId = p.sub; await user.save(); }
-    const base = String(redirect || env.CLIENT_ORIGIN).split("#")[0];
+    const fallbackBase = getBaseUrl(req);
+    const base = String(redirect || env.CLIENT_ORIGIN || fallbackBase).split("#")[0];
     res.redirect(`${base}#/auth/callback?token=${encodeURIComponent(signToken(user))}`);
   } catch (e) {
-    console.error(e);
-    res.status(400).send("Google sign-in failed. Check GOOGLE_CLIENT_ID/SECRET and the redirect URI.");
+    console.error("[Google Auth Error]", e);
+    const detail = e.response?.data?.error_description || e.message || String(e);
+    res.status(400).send(`Google sign-in failed: ${detail}. Please verify GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, MONGODB_URI and redirect URIs in Google Cloud.`);
   }
 });

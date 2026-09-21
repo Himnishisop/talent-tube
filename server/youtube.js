@@ -20,15 +20,17 @@
 import { Router } from "express";
 import { OAuth2Client } from "google-auth-library";
 import { User, Video } from "./db.js";
-import { attachUser, requireAuth } from "./auth.js";
+import { attachUser, requireAuth, getBaseUrl } from "./auth.js";
 
 const env = process.env;
 const SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl", "openid", "email"];
 const YT = "https://www.googleapis.com/youtube/v3";
 const DEFAULT_PRIVACY = ["unlisted", "private", "public"].includes(env.YOUTUBE_DEFAULT_PRIVACY) ? env.YOUTUBE_DEFAULT_PRIVACY : "unlisted";
 
-const baseUrl = (env.SERVER_URL || "http://localhost:3000").replace(/\/$/, "");
-const client = () => new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, `${baseUrl}/api/youtube/callback`);
+const client = (req) => {
+  const base = getBaseUrl(req);
+  return new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, `${base}/api/youtube/callback`);
+};
 
 /** Fresh access token for a user's connected channel (auto-refreshed). */
 async function accessTokenFor(uid) {
@@ -54,14 +56,15 @@ youtubeRouter.use(attachUser);
 
 // 1. Start consent -----------------------------------------------------------
 youtubeRouter.get("/connect", requireAuth, (req, res) => {
-  const state = Buffer.from(JSON.stringify({ uid: req.user.uid, redirect: req.query.redirect ?? env.CLIENT_ORIGIN })).toString("base64url");
-  res.json({ url: client().generateAuthUrl({ access_type: "offline", prompt: "consent", include_granted_scopes: true, scope: SCOPES, state }) });
+  const base = getBaseUrl(req);
+  const state = Buffer.from(JSON.stringify({ uid: req.user.uid, redirect: req.query.redirect ?? base })).toString("base64url");
+  res.json({ url: client(req).generateAuthUrl({ access_type: "offline", prompt: "consent", include_granted_scopes: true, scope: SCOPES, state }) });
 });
 
 youtubeRouter.get("/callback", async (req, res) => {
   try {
     const { uid, redirect } = JSON.parse(Buffer.from(String(req.query.state ?? ""), "base64url").toString());
-    const c = client();
+    const c = client(req);
     const { tokens } = await c.getToken(String(req.query.code));
     if (!tokens.refresh_token) throw new Error("Google did not return a refresh token. Remove the app at myaccount.google.com/permissions and connect again.");
     const me = await ytFetch(tokens.access_token, "/channels?part=snippet&mine=true");
