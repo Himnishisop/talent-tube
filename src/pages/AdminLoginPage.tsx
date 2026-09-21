@@ -57,7 +57,7 @@ export function AdminLoginPage() {
         </form>
         {isDemoMode && (
           <p className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
-            Demo admin: <code>admin@talenttube.in</code> / <code>admin123</code>
+            Admin account: <code>rajeev.raj66@gmail.com</code>
           </p>
         )}
       </div>

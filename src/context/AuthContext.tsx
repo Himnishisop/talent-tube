@@ -25,7 +25,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 const DEMO_SESSION_KEY = "tt_demo_session";
-export const DEMO_ADMIN_EMAIL = "admin@talenttube.in";
+export const DEMO_ADMIN_EMAIL = "rajeev.raj66@gmail.com";
 export const DEMO_ADMIN_PASSWORD = "admin123";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -62,21 +62,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ----------------------------------------------------------- demo helpers
-  const demoLogin = useCallback(async (email: string, name: string, role: UserRole, password?: string): Promise<AppUser> => {
+  const demoLogin = useCallback(async (email: string, name: string, _role: UserRole = "talent", password?: string): Promise<AppUser> => {
     const isAdminEmail = email.toLowerCase() === DEMO_ADMIN_EMAIL;
     if (isAdminEmail && password !== undefined && password !== DEMO_ADMIN_PASSWORD) {
       throw new Error("Invalid admin credentials");
     }
     const uid = `u_${email.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
     const existing = await dataService.getUser(uid);
-    const profile: AppUser = existing ?? {
+    const assignedRole: UserRole = isAdminEmail ? "admin" : "talent";
+    const profile: AppUser = {
+      ...(existing || {}),
       uid,
-      role: isAdminEmail ? "admin" : role,
-      displayName: name || email.split("@")[0],
+      role: assignedRole,
+      displayName: name || existing?.displayName || email.split("@")[0],
       email,
-      createdAt: new Date().toISOString(),
+      createdAt: existing?.createdAt || new Date().toISOString(),
     };
-    if (isAdminEmail) profile.role = "admin";
     await dataService.saveUser(profile);
     localStorage.setItem(DEMO_SESSION_KEY, JSON.stringify(profile));
     setUser(profile);
@@ -103,20 +104,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw err;
         }
       }
-      return demoLogin(email, "", "customer", password);
+      return demoLogin(email, "", "talent", password);
     },
     [demoLogin, apiSession]
   );
 
   const signUpWithEmail = useCallback(
-    async (email: string, password: string, name: string, role: UserRole) => {
-      const safeRole: UserRole = role === "admin" ? "customer" : role;
+    async (email: string, password: string, name: string, _role: UserRole = "talent") => {
+      const safeRole: UserRole = email.toLowerCase() === DEMO_ADMIN_EMAIL ? "admin" : "talent";
       if (isApiConfigured) {
-        try {
-          return apiSession(await api<{ token: string; user: AppUser }>("/api/auth/register", { method: "POST", json: { email, password, name, role: safeRole } }));
-        } catch (err) {
-          throw err;
-        }
+        return apiSession(await api<{ token: string; user: AppUser }>("/api/auth/register", { method: "POST", json: { email, password, name, role: safeRole } }));
       }
       return demoLogin(email, name, safeRole, password);
     },
@@ -124,14 +121,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signInWithGoogle = useCallback(
-    async (role: UserRole = "customer") => {
+    async (_role: UserRole = "talent") => {
       if (isApiConfigured) {
         // Full-page redirect to the server's Google OAuth flow; returns to #/auth/callback?token=...
         const redirect = `${window.location.origin}${window.location.pathname}`;
-        window.location.href = `${API_URL}/api/auth/google?role=${role}&redirect=${encodeURIComponent(redirect)}`;
+        window.location.href = `${API_URL}/api/auth/google?redirect=${encodeURIComponent(redirect)}`;
         return new Promise<AppUser>(() => { /* page navigates away */ });
       }
-      return demoLogin("demo.google.user@gmail.com", "Demo User", role);
+      return demoLogin("demo.google.user@gmail.com", "Demo Creator", "talent");
     },
     [demoLogin]
   );

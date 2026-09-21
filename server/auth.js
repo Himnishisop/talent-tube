@@ -9,24 +9,18 @@ import { User, connectDb } from "./db.js";
 
 const env = process.env;
 const JWT_SECRET = env.JWT_SECRET || "talent-tube-jwt-secret-fallback-token-key-2026";
-const DEFAULT_ADMIN_EMAILS = [
-  "admin@talenttube.in",
-  "musicallyhimnishverma@gmail.com",
-  "rajeev.raj66@gmail.com"
-];
-const envAdmins = (env.ADMIN_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-const ADMIN_EMAILS = Array.from(new Set([...DEFAULT_ADMIN_EMAILS, ...envAdmins]));
+export const ONLY_ADMIN_EMAIL = "rajeev.raj66@gmail.com";
 const TOKEN_TTL = "30d";
 
 export const uidFrom = (seed) => `u_${String(seed || "").toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
 
-export const isAdminEmail = (email) => !!email && ADMIN_EMAILS.includes(String(email).trim().toLowerCase());
+export const isAdminEmail = (email) => !!email && String(email).trim().toLowerCase() === ONLY_ADMIN_EMAIL;
 
 export const publicUser = (u) => {
   if (!u) return null;
   const email = u.email ? String(u.email).toLowerCase() : "";
   const uid = u.uid || (email ? uidFrom(email) : String(u._id || `u_${Date.now()}`));
-  const role = isAdminEmail(email) ? "admin" : (u.role || (u.accountType === "talent" ? "talent" : "customer"));
+  const role = isAdminEmail(email) ? "admin" : "talent";
   return {
     uid,
     role,
@@ -41,7 +35,7 @@ export const publicUser = (u) => {
 export const signToken = (user) => {
   const email = user.email ? String(user.email).toLowerCase() : "";
   const uid = user.uid || (email ? uidFrom(email) : String(user._id || `u_${Date.now()}`));
-  const role = isAdminEmail(email) ? "admin" : (user.role || (user.accountType === "talent" ? "talent" : "customer"));
+  const role = isAdminEmail(email) ? "admin" : "talent";
   return jwt.sign({ uid, role, email }, JWT_SECRET, { expiresIn: TOKEN_TTL });
 };
 
@@ -69,11 +63,11 @@ export async function attachUser(req, _res, next) {
         if (u) {
           const email = u.email ? String(u.email).toLowerCase() : "";
           const uid = u.uid || decoded.uid || (email ? uidFrom(email) : String(u._id));
-          const role = isAdminEmail(email) ? "admin" : (u.role || decoded.role || "talent");
+          const role = isAdminEmail(email) ? "admin" : "talent";
           u.uid = uid;
           u.role = role;
           req.user = u;
-          // Synchronize missing uid back into Mongo so future queries are instant
+          // Synchronize missing uid or demote non-admin in Mongo
           if (!u.uid || u.role !== role) {
             await User.updateOne({ _id: u._id }, { $set: { uid, role } });
           }
@@ -104,15 +98,16 @@ export const authRouter = Router();
 
 // ---- Email / password ------------------------------------------------------
 authRouter.post("/register", async (req, res) => {
-  const { email, password, name, role } = req.body ?? {};
+  const { email, password, name } = req.body ?? {};
   if (!email || !password || password.length < 6) return res.status(400).json({ error: "Email and a 6+ character password are required" });
   const lower = String(email).toLowerCase();
   if (await User.findOne({ email: lower })) return res.status(409).json({ error: "This email is already registered. Please sign in." });
+  const role = isAdminEmail(lower) ? "admin" : "talent";
   const user = await User.create({
     uid: uidFrom(lower),
     email: lower,
     displayName: name || lower.split("@")[0],
-    role: isAdminEmail(lower) ? "admin" : role === "talent" ? "talent" : "customer",
+    role,
     passwordHash: await bcrypt.hash(password, 10),
     createdAt: new Date().toISOString(),
   });
@@ -123,7 +118,11 @@ authRouter.post("/login", async (req, res) => {
   const { email, password } = req.body ?? {};
   const user = await User.findOne({ email: String(email ?? "").toLowerCase() }).select("+passwordHash");
   if (!user?.passwordHash || !(await bcrypt.compare(password ?? "", user.passwordHash))) return res.status(401).json({ error: "Incorrect email or password." });
-  if (isAdminEmail(user.email) && user.role !== "admin") { user.role = "admin"; await user.save(); }
+  const expectedRole = isAdminEmail(user.email) ? "admin" : "talent";
+  if (user.role !== expectedRole) {
+    user.role = expectedRole;
+    await user.save();
+  }
   res.json({ token: signToken(user), user: publicUser(user) });
 });
 
@@ -133,14 +132,14 @@ authRouter.get("/me", attachUser, requireAuth, (req, res) => res.json(publicUser
 authRouter.get("/google", (req, res) => {
   if (!env.GOOGLE_CLIENT_ID) return res.status(500).send("GOOGLE_CLIENT_ID is not configured in environment variables.");
   const base = getBaseUrl(req);
-  const state = Buffer.from(JSON.stringify({ redirect: req.query.redirect ?? base, role: req.query.role ?? "customer" })).toString("base64url");
+  const state = Buffer.from(JSON.stringify({ redirect: req.query.redirect ?? base, role: req.query.role ?? "talent" })).toString("base64url");
   const url = oauth("auth/google/callback", req).generateAuthUrl({ scope: ["openid", "email", "profile"], prompt: "select_account", state });
   res.redirect(url);
 });
 
 authRouter.get("/google/callback", async (req, res) => {
   try {
-    const { redirect, role } = JSON.parse(Buffer.from(String(req.query.state ?? ""), "base64url").toString() || "{}");
+    const { redirect } = JSON.parse(Buffer.from(String(req.query.state ?? ""), "base64url").toString() || "{}");
     const client = oauth("auth/google/callback", req);
     const { tokens } = await client.getToken(String(req.query.code));
     const ticket = await client.verifyIdToken({ idToken: tokens.id_token, audience: env.GOOGLE_CLIENT_ID });
@@ -151,17 +150,18 @@ authRouter.get("/google/callback", async (req, res) => {
       await connectDb(env.MONGODB_URI);
     }
 
+    const expectedRole = isAdminEmail(email) ? "admin" : "talent";
     let user = await User.findOne({ $or: [{ googleId: p.sub }, { email }] });
     if (!user) {
       user = await User.create({
         uid: uidFrom(email), email, googleId: p.sub, displayName: p.name ?? email.split("@")[0], photoURL: p.picture,
-        role: isAdminEmail(email) ? "admin" : role === "talent" ? "talent" : "customer", createdAt: new Date().toISOString(),
+        role: expectedRole, createdAt: new Date().toISOString(),
       });
     } else {
       let changed = false;
       if (!user.googleId) { user.googleId = p.sub; changed = true; }
       if (!user.uid) { user.uid = uidFrom(email); changed = true; }
-      if (isAdminEmail(email) && user.role !== "admin") { user.role = "admin"; changed = true; }
+      if (user.role !== expectedRole) { user.role = expectedRole; changed = true; }
       if (!user.photoURL && p.picture) { user.photoURL = p.picture; changed = true; }
       if (changed) await user.save();
     }
