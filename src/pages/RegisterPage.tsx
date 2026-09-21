@@ -83,6 +83,13 @@ export function RegisterPage() {
           videoUrls: tal.videos.length ? tal.videos.map((v) => v.url) : [""],
           bestVideoIndex: Math.max(0, tal.videos.findIndex((v) => v.isBest)),
         });
+      } else if (user) {
+        setForm((prev) => ({
+          ...prev,
+          fullName: user.displayName || prev.fullName,
+          email: user.email || prev.email,
+          photoURL: user.photoURL || prev.photoURL,
+        }));
       }
     });
   }, [user]);

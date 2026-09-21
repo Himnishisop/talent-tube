@@ -15,6 +15,7 @@ interface AuthContextValue {
   user: AppUser | null;
   loading: boolean;
   isAdmin: boolean;
+  setSession: (token: string, user: AppUser) => void;
   signInWithEmail: (email: string, password: string) => Promise<AppUser>;
   signUpWithEmail: (email: string, password: string, name: string, role: UserRole) => Promise<AppUser>;
   signInWithGoogle: (role?: UserRole) => Promise<AppUser>;
@@ -37,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const m = /#\/auth\/callback\?(?:.*&)?token=([^&]+)/.exec(window.location.hash);
     if (m) {
       setToken(decodeURIComponent(m[1]));
-      window.history.replaceState(null, "", `${window.location.pathname}#/`);
+      // Let AuthCallbackPage handle the smart role-based redirect without resetting prematurely
     }
 
     if (isApiConfigured && getToken()) {
@@ -155,18 +156,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  const setSession = useCallback((token: string, appUser: AppUser) => {
+    setToken(token);
+    setUser(appUser);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       loading,
       isAdmin: user?.role === "admin",
+      setSession,
       signInWithEmail,
       signUpWithEmail,
       signInWithGoogle,
       signOut,
       refreshUser,
     }),
-    [user, loading, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, refreshUser]
+    [user, loading, setSession, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

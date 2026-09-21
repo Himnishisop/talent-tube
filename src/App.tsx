@@ -13,6 +13,7 @@ import { TalentDashboardPage } from "@/pages/TalentDashboardPage";
 import { SubscriptionPage } from "@/pages/SubscriptionPage";
 import { AdminLoginPage } from "@/pages/AdminLoginPage";
 import { AdminDashboardPage } from "@/pages/AdminDashboardPage";
+import { AuthCallbackPage } from "@/pages/AuthCallbackPage";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { MobileApp } from "@/pages/MobileApp";
 import { PrototypeHub } from "@/pages/PrototypeHub";
@@ -42,6 +43,7 @@ export default function App() {
               <Route path="/talent/:id" element={<TalentProfilePage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
               {/* Talent-only */}
               <Route element={<RequireAuth roles={["talent"]} />}>
