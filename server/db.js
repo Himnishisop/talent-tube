@@ -74,6 +74,10 @@ export async function connectDb(uri) {
   if (!uri) {
     throw new Error("MONGODB_URI environment variable is missing");
   }
+  let cleanUri = String(uri).trim();
+  // If user included <password> with literal angle brackets, strip them automatically
+  cleanUri = cleanUri.replace(/:<([^>]+)>@/, ":$1@");
+
   if (mongoose.connection.readyState === 1) {
     return mongoose;
   }
@@ -82,7 +86,7 @@ export async function connectDb(uri) {
   }
   if (!cached.promise) {
     mongoose.set("strictQuery", false);
-    cached.promise = mongoose.connect(uri, {
+    cached.promise = mongoose.connect(cleanUri, {
       serverSelectionTimeoutMS: 8000,
     }).then((m) => {
       console.log("✓ MongoDB connected successfully");
