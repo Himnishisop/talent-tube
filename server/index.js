@@ -60,22 +60,32 @@ app.use((err, req, res, _next) => {
   res.status(500).json({ error: err.message ?? "Internal Server Error" });
 });
 
-async function start() {
+export { app };
+
+let dbConnected = false;
+export async function ensureDbConnected() {
+  if (dbConnected) return;
   if (process.env.MONGODB_URI) {
     try {
       await connectDb(process.env.MONGODB_URI);
-      console.log("✓ MongoDB connected successfully.");
+      dbConnected = true;
     } catch (e) {
-      console.warn("! MongoDB connection failed, starting server in offline demo mode:", e.message);
+      console.warn("MongoDB connection warning:", e.message);
     }
-  } else {
-    console.log("ℹ MONGODB_URI not provided. Running in local demo mode until credentials are set.");
   }
+}
+
+async function start() {
+  await ensureDbConnected();
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`✓ Talent Tube running on http://0.0.0.0:${PORT}`);
   });
 }
 
-start();
+// Only launch standalone listener when not in Vercel serverless environment
+if (!process.env.VERCEL) {
+  start();
+}
+
 
