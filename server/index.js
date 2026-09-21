@@ -19,12 +19,29 @@ app.use(express.json({ limit: "5mb" }));
 
 // Status & Health checks
 app.get("/health", (_req, res) => res.json({ ok: true, status: "healthy" }));
-app.get("/api/health", (_req, res) => res.json({
-  ok: true,
-  database: "mongodb",
-  googleAuth: !!process.env.GOOGLE_CLIENT_ID,
-  youtubeApi: !!process.env.GOOGLE_CLIENT_ID,
-}));
+app.get("/api/health", async (_req, res) => {
+  let dbStatus = "not_configured";
+  let dbError = null;
+  if (process.env.MONGODB_URI) {
+    try {
+      await connectDb(process.env.MONGODB_URI);
+      dbStatus = "connected";
+    } catch (e) {
+      dbStatus = "error";
+      dbError = e.message;
+    }
+  }
+  res.json({
+    ok: true,
+    database: {
+      status: dbStatus,
+      error: dbError,
+      hasUri: !!process.env.MONGODB_URI,
+    },
+    googleAuth: !!process.env.GOOGLE_CLIENT_ID,
+    youtubeApi: !!process.env.GOOGLE_CLIENT_ID,
+  });
+});
 
 // API Routes
 app.use("/api/auth", authRouter);
@@ -62,21 +79,18 @@ app.use((err, req, res, _next) => {
 
 export { app };
 
-let dbConnected = false;
 export async function ensureDbConnected() {
-  if (dbConnected) return;
   if (process.env.MONGODB_URI) {
-    try {
-      await connectDb(process.env.MONGODB_URI);
-      dbConnected = true;
-    } catch (e) {
-      console.warn("MongoDB connection warning:", e.message);
-    }
+    await connectDb(process.env.MONGODB_URI);
   }
 }
 
 async function start() {
-  await ensureDbConnected();
+  try {
+    await ensureDbConnected();
+  } catch (e) {
+    console.warn("⚠️ Continuing server startup with database offline:", e.message);
+  }
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`✓ Talent Tube running on http://0.0.0.0:${PORT}`);

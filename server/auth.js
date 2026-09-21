@@ -5,7 +5,7 @@ import { Router } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { OAuth2Client } from "google-auth-library";
-import { User } from "./db.js";
+import { User, connectDb } from "./db.js";
 
 const env = process.env;
 const JWT_SECRET = env.JWT_SECRET || "talent-tube-jwt-secret-fallback-token-key-2026";
@@ -93,6 +93,11 @@ authRouter.get("/google/callback", async (req, res) => {
     const ticket = await client.verifyIdToken({ idToken: tokens.id_token, audience: env.GOOGLE_CLIENT_ID });
     const p = ticket.getPayload();
     const email = p.email.toLowerCase();
+    
+    if (env.MONGODB_URI) {
+      await connectDb(env.MONGODB_URI);
+    }
+
     let user = await User.findOne({ $or: [{ googleId: p.sub }, { email }] });
     if (!user) {
       user = await User.create({

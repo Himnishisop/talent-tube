@@ -65,18 +65,37 @@ export const Report = mongoose.model("Report", ReportSchema);
 export const Photo = mongoose.model("Photo", PhotoSchema);
 export const Video = mongoose.model("Video", VideoSchema);
 
-mongoose.set("bufferCommands", false);
+let cached = global.mongoose;
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
 
 export async function connectDb(uri) {
   if (!uri) {
-    console.warn("[Talent Tube] MONGODB_URI not set — database features offline");
-    return;
+    throw new Error("MONGODB_URI environment variable is missing");
   }
-  mongoose.set("strictQuery", false);
+  if (mongoose.connection.readyState === 1) {
+    return mongoose;
+  }
+  if (cached.conn) {
+    return cached.conn;
+  }
+  if (!cached.promise) {
+    mongoose.set("strictQuery", false);
+    cached.promise = mongoose.connect(uri, {
+      serverSelectionTimeoutMS: 8000,
+    }).then((m) => {
+      console.log("✓ MongoDB connected successfully");
+      return m;
+    });
+  }
   try {
-    await mongoose.connect(uri);
-    console.log("✓ MongoDB connected");
+    cached.conn = await cached.promise;
+    return cached.conn;
   } catch (err) {
-    console.warn("[Talent Tube] MongoDB connection failed:", err.message);
+    cached.promise = null;
+    cached.conn = null;
+    console.error("[Talent Tube] MongoDB connection failed:", err.message);
+    throw new Error(`MongoDB connection error: ${err.message}`);
   }
 }
