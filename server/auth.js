@@ -9,12 +9,41 @@ import { User, connectDb } from "./db.js";
 
 const env = process.env;
 const JWT_SECRET = env.JWT_SECRET || "talent-tube-jwt-secret-fallback-token-key-2026";
-const ADMIN_EMAILS = (env.ADMIN_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+const DEFAULT_ADMIN_EMAILS = [
+  "admin@talenttube.in",
+  "musicallyhimnishverma@gmail.com",
+  "rajeev.raj66@gmail.com"
+];
+const envAdmins = (env.ADMIN_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+const ADMIN_EMAILS = Array.from(new Set([...DEFAULT_ADMIN_EMAILS, ...envAdmins]));
 const TOKEN_TTL = "30d";
 
-export const isAdminEmail = (email) => !!email && ADMIN_EMAILS.includes(email.toLowerCase());
-export const signToken = (user) => jwt.sign({ uid: user.uid, role: user.role }, JWT_SECRET, { expiresIn: TOKEN_TTL });
-export const publicUser = (u) => ({ uid: u.uid, role: u.role, displayName: u.displayName, email: u.email, phone: u.phone, photoURL: u.photoURL, createdAt: u.createdAt });
+export const uidFrom = (seed) => `u_${String(seed || "").toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+
+export const isAdminEmail = (email) => !!email && ADMIN_EMAILS.includes(String(email).trim().toLowerCase());
+
+export const publicUser = (u) => {
+  if (!u) return null;
+  const email = u.email ? String(u.email).toLowerCase() : "";
+  const uid = u.uid || (email ? uidFrom(email) : String(u._id || `u_${Date.now()}`));
+  const role = isAdminEmail(email) ? "admin" : (u.role || (u.accountType === "talent" ? "talent" : "customer"));
+  return {
+    uid,
+    role,
+    displayName: u.displayName || u.name || u.profileName || (email ? email.split("@")[0] : "Creator"),
+    email: u.email,
+    phone: u.phone || u.whatsapp,
+    photoURL: u.photoURL || u.picture || u.profilePicture,
+    createdAt: u.createdAt || new Date().toISOString()
+  };
+};
+
+export const signToken = (user) => {
+  const email = user.email ? String(user.email).toLowerCase() : "";
+  const uid = user.uid || (email ? uidFrom(email) : String(user._id || `u_${Date.now()}`));
+  const role = isAdminEmail(email) ? "admin" : (user.role || (user.accountType === "talent" ? "talent" : "customer"));
+  return jwt.sign({ uid, role, email }, JWT_SECRET, { expiresIn: TOKEN_TTL });
+};
 
 /** Attaches req.user (may be null). */
 export async function attachUser(req, _res, next) {
@@ -23,8 +52,33 @@ export async function attachUser(req, _res, next) {
   req.user = null;
   if (token) {
     try {
-      const { uid } = jwt.verify(token, JWT_SECRET);
-      req.user = await User.findOne({ uid }).lean();
+      const decoded = jwt.verify(token, JWT_SECRET);
+      if (decoded && (decoded.uid || decoded.email)) {
+        let u = null;
+        if (decoded.uid) {
+          u = await User.findOne({
+            $or: [
+              { uid: decoded.uid },
+              { email: decoded.uid.replace(/^u_/, "").replace(/_/g, ".") }
+            ]
+          }).lean();
+        }
+        if (!u && decoded.email) {
+          u = await User.findOne({ email: String(decoded.email).toLowerCase() }).lean();
+        }
+        if (u) {
+          const email = u.email ? String(u.email).toLowerCase() : "";
+          const uid = u.uid || decoded.uid || (email ? uidFrom(email) : String(u._id));
+          const role = isAdminEmail(email) ? "admin" : (u.role || decoded.role || "talent");
+          u.uid = uid;
+          u.role = role;
+          req.user = u;
+          // Synchronize missing uid back into Mongo so future queries are instant
+          if (!u.uid || u.role !== role) {
+            await User.updateOne({ _id: u._id }, { $set: { uid, role } });
+          }
+        }
+      }
     } catch { /* invalid/expired token → anonymous */ }
   }
   next();
@@ -45,7 +99,6 @@ export const oauth = (redirectPath, req) => {
   const base = getBaseUrl(req);
   return new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, `${base}/api/${redirectPath}`);
 };
-const uidFrom = (seed) => `u_${seed.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
 
 export const authRouter = Router();
 
@@ -104,7 +157,14 @@ authRouter.get("/google/callback", async (req, res) => {
         uid: uidFrom(email), email, googleId: p.sub, displayName: p.name ?? email.split("@")[0], photoURL: p.picture,
         role: isAdminEmail(email) ? "admin" : role === "talent" ? "talent" : "customer", createdAt: new Date().toISOString(),
       });
-    } else if (!user.googleId) { user.googleId = p.sub; await user.save(); }
+    } else {
+      let changed = false;
+      if (!user.googleId) { user.googleId = p.sub; changed = true; }
+      if (!user.uid) { user.uid = uidFrom(email); changed = true; }
+      if (isAdminEmail(email) && user.role !== "admin") { user.role = "admin"; changed = true; }
+      if (!user.photoURL && p.picture) { user.photoURL = p.picture; changed = true; }
+      if (changed) await user.save();
+    }
     const fallbackBase = getBaseUrl(req);
     const base = String(redirect || env.CLIENT_ORIGIN || fallbackBase).split("#")[0];
     res.redirect(`${base}#/auth/callback?token=${encodeURIComponent(signToken(user))}`);

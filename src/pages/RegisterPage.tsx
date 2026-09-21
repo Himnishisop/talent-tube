@@ -207,7 +207,7 @@ export function RegisterPage() {
       };
       await dataService.saveTalent(talent);
 
-      if (user.role !== "talent") {
+      if (user.role !== "talent" && user.role !== "admin") {
         await dataService.saveUser({ ...user, role: "talent", phone: talent.mobile });
         await refreshUser();
       }

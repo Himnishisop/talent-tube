@@ -282,7 +282,7 @@ function AppRegister() {
         registrationComplete: true, createdAt: existing?.createdAt ?? now, updatedAt: now,
       };
       await dataService.saveTalent(talent);
-      if (me.role !== "talent") { await dataService.saveUser({ ...me, role: "talent", phone: mobile }); await refreshUser(); }
+      if (me.role !== "talent" && me.role !== "admin") { await dataService.saveUser({ ...me, role: "talent", phone: mobile }); await refreshUser(); }
       setExisting(talent);
       navigate("/app/live");
     } catch (err) {

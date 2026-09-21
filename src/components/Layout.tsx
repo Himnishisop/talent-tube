@@ -67,6 +67,11 @@ export function Layout() {
             )}
           </nav>
           <div className="flex items-center gap-3 sm:gap-6">
+            {isAdmin && (
+              <Link to="/admin" className="hidden text-xs font-semibold text-neon hover:underline sm:inline-flex">
+                Admin Panel
+              </Link>
+            )}
             {user ? (
               <button
                 onClick={async () => {
@@ -85,9 +90,9 @@ export function Layout() {
                 {t("login")}
               </Link>
             )}
-            <Link to={isAdmin ? "/admin" : user ? "/dashboard" : "/register"} className="button-primary inline-flex h-11 items-center justify-center gap-2 rounded-md px-3 text-[11px] font-bold sm:px-5 sm:text-[13px]">
-              <span className="sm:hidden">{isAdmin ? "Admin" : user ? "Profile" : "Join as talent"}</span>
-              <span className="hidden sm:inline">{isAdmin ? "Admin panel" : user ? "My Creator Profile" : "Join as talent"}</span>
+            <Link to={user ? "/dashboard" : "/register"} className="button-primary inline-flex h-11 items-center justify-center gap-2 rounded-md px-3 text-[11px] font-bold sm:px-5 sm:text-[13px]">
+              <span className="sm:hidden">{user ? "Studio" : "Join as talent"}</span>
+              <span className="hidden sm:inline">{user ? "My Creator Profile" : "Join as talent"}</span>
               <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </div>

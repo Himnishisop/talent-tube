@@ -32,25 +32,43 @@ apiRouter.get("/stream", (req, res) => {
 
 // Users ---------------------------------------------------------------------
 apiRouter.get("/users/:uid", requireAuth, async (req, res) => {
-  if (req.user.uid !== req.params.uid && req.user.role !== "admin") return res.status(403).json({ error: "Forbidden" });
-  const u = await User.findOne({ uid: req.params.uid }).lean();
+  const target = req.params.uid;
+  const isSelf = target === "me" || target === "undefined" || target === "null" ||
+                 target === req.user.uid || (req.user.email && target.toLowerCase() === req.user.email.toLowerCase());
+  if (isSelf) return res.json(publicUser(req.user));
+  const u = await User.findOne({ $or: [{ uid: target }, { email: target.toLowerCase() }] }).lean();
   res.json(u ? publicUser(u) : null);
 });
 apiRouter.put("/users/:uid", requireAuth, async (req, res) => {
-  if (req.user.uid !== req.params.uid && req.user.role !== "admin") return res.status(403).json({ error: "Forbidden" });
+  const target = req.params.uid;
+  const isSelf = target === "me" || target === "undefined" || target === "null" ||
+                 target === req.user.uid || (req.user.email && target.toLowerCase() === req.user.email.toLowerCase());
+  if (!isSelf && req.user.role !== "admin") return res.status(403).json({ error: "Forbidden" });
+
   const { role, ...rest } = req.body ?? {};
   const set = { ...rest };
   // Users may upgrade themselves customer → talent only; admin is never self-assigned.
   if (role === "talent" || (req.user.role === "admin" && role)) set.role = role;
   delete set.passwordHash; delete set.youtube;
-  const u = await User.findOneAndUpdate({ uid: req.params.uid }, { $set: set }, { new: true }).lean();
+
+  const targetUid = isSelf ? req.user.uid : target;
+  set.uid = targetUid;
+  const u = await User.findOneAndUpdate(
+    { $or: [{ uid: targetUid }, { _id: req.user._id }] }, 
+    { $set: set }, 
+    { new: true, upsert: true }
+  ).lean();
   res.json(publicUser(u));
 });
 
 // Talents -------------------------------------------------------------------
 apiRouter.get("/talents", async (req, res) => {
   if (req.query.all === "1") {
-    if (req.user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
+    if (req.user?.role !== "admin") {
+      const list = (await Talent.find({ status: { $nin: ["rejected", "suspended"] } }).lean()).map(publicView);
+      list.sort((a, b) => Number(!!b.featured) - Number(!!a.featured) || String(b.createdAt).localeCompare(String(a.createdAt)));
+      return res.json(list);
+    }
     return res.json((await Talent.find().sort({ createdAt: -1 }).lean()).map(strip));
   }
   // Public directory: all talents that are not explicitly rejected or suspended
@@ -60,7 +78,15 @@ apiRouter.get("/talents", async (req, res) => {
 });
 
 apiRouter.get("/talents/:id", async (req, res) => {
-  const t = await Talent.findOne({ $or: [{ id: req.params.id }, { uid: req.params.id }] }).lean();
+  const id = req.params.id;
+  const isCurrent = id === "me" || id === "mine" || id === "undefined" || id === "null";
+  let t = null;
+  if (!isCurrent) {
+    t = await Talent.findOne({ $or: [{ id }, { uid: id }] }).lean();
+  }
+  if (!t && req.user) {
+    t = await Talent.findOne({ $or: [{ uid: req.user.uid }, ...(req.user.email ? [{ email: req.user.email }] : [])] }).lean();
+  }
   if (!t) return res.json(null);
   res.json(strip(t));
 });
@@ -69,16 +95,20 @@ apiRouter.put("/talents/:id", requireAuth, async (req, res) => {
   const body = { ...(req.body ?? {}) };
   const admin = req.user?.role === "admin";
   
-  // Find any existing talent for this user (by requested id or user's uid)
-  let existing = await Talent.findOne({ $or: [{ id: req.params.id }, { uid: req.user.uid }] }).lean();
-  if (!admin && existing && existing.uid && existing.uid !== req.user.uid) {
-    // If the record with that id belongs to someone else, fallback to current user's profile
-    existing = await Talent.findOne({ uid: req.user.uid }).lean();
-  }
+  // Find any existing talent for this user (by requested id or user's uid or email)
+  let existing = await Talent.findOne({ 
+    $or: [
+      { id: req.params.id }, 
+      { uid: req.user.uid },
+      ...(req.user.email ? [{ email: req.user.email }] : [])
+    ] 
+  }).lean();
 
-  const targetId = admin ? req.params.id : (existing?.id || req.user.uid);
+  const isInvalidParam = !req.params.id || req.params.id === "undefined" || req.params.id === "null";
+  const targetId = admin && !isInvalidParam ? req.params.id : (existing?.id || req.user.uid || `t_${Date.now()}`);
   body.id = targetId;
   body.uid = req.user.uid;
+  if (!body.email && req.user.email) body.email = req.user.email;
 
   if ((body.videos?.length ?? 0) > 10) return res.status(400).json({ error: "Maximum 10 videos" });
 
@@ -97,7 +127,8 @@ apiRouter.put("/talents/:id", requireAuth, async (req, res) => {
   body.updatedAt = new Date().toISOString();
   if (!body.createdAt) body.createdAt = existing?.createdAt || new Date().toISOString();
 
-  const t = await Talent.findOneAndUpdate({ id: targetId }, { $set: body }, { upsert: true, new: true }).lean();
+  const query = existing ? { _id: existing._id } : { id: targetId };
+  const t = await Talent.findOneAndUpdate(query, { $set: body }, { upsert: true, new: true }).lean();
 
   // Upgrade user's role to talent in User table if currently customer
   if (req.user?.role !== "admin" && req.user?.role !== "talent") {
@@ -111,16 +142,23 @@ apiRouter.put("/talents/:id", requireAuth, async (req, res) => {
 apiRouter.patch("/talents/:id", requireAuth, async (req, res) => {
   const admin = req.user.role === "admin";
   const patch = { ...(req.body ?? {}) };
-  let t0 = await Talent.findOne({ $or: [{ id: req.params.id }, { uid: req.params.id }] }).lean();
+  let t0 = await Talent.findOne({ 
+    $or: [
+      { id: req.params.id }, 
+      { uid: req.params.id }, 
+      { uid: req.user.uid },
+      ...(req.user.email ? [{ email: req.user.email }] : [])
+    ] 
+  }).lean();
   if (!t0 && !admin) {
-    t0 = await Talent.findOne({ uid: req.user.uid }).lean();
+    t0 = await Talent.findOne({ $or: [{ uid: req.user.uid }, ...(req.user.email ? [{ email: req.user.email }] : [])] }).lean();
   }
   if (!t0) return res.status(404).json({ error: "Not found" });
-  const owner = t0.uid === req.user.uid;
+  const owner = t0.uid === req.user.uid || (req.user.email && t0.email?.toLowerCase() === req.user.email?.toLowerCase());
   if (!admin && !owner) return res.status(403).json({ error: "Forbidden" });
 
   patch.updatedAt = new Date().toISOString();
-  const t = await Talent.findOneAndUpdate({ id: t0.id }, { $set: patch }, { new: true }).lean();
+  const t = await Talent.findOneAndUpdate({ _id: t0._id }, { $set: patch }, { new: true }).lean();
   broadcast("talents", { id: t.id });
   res.json(strip(t));
 });

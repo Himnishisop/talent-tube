@@ -46,7 +46,7 @@ export default function App() {
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
               {/* Creator Studio & Profile */}
-              <Route element={<RequireAuth roles={["talent", "customer"]} />}>
+              <Route element={<RequireAuth roles={["talent", "customer", "admin"]} />}>
                 <Route path="/dashboard" element={<TalentDashboardPage />} />
                 <Route path="/profile" element={<TalentDashboardPage />} />
                 <Route path="/subscribe" element={<SubscriptionPage />} />

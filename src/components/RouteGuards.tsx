@@ -9,7 +9,7 @@ export function RequireAuth({ roles }: { roles?: UserRole[] }) {
   const location = useLocation();
   if (loading) return <Spinner label="Checking session…" />;
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
-  if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />;
+  if (roles && !roles.includes(user.role) && user.role !== "admin") return <Navigate to="/" replace />;
   return <Outlet />;
 }
 
