@@ -85,9 +85,9 @@ export function Layout() {
                 {t("login")}
               </Link>
             )}
-            <Link to={isAdmin ? "/admin" : user?.role === "talent" ? "/dashboard" : "/register"} className="button-primary inline-flex h-11 items-center justify-center gap-2 rounded-md px-3 text-[11px] font-bold sm:px-5 sm:text-[13px]">
-              <span className="sm:hidden">{isAdmin ? "Admin" : user?.role === "talent" ? "Dashboard" : "Join as talent"}</span>
-              <span className="hidden sm:inline">{isAdmin ? "Admin panel" : user?.role === "talent" ? "Your dashboard" : "Join as talent"}</span>
+            <Link to={isAdmin ? "/admin" : user ? "/dashboard" : "/register"} className="button-primary inline-flex h-11 items-center justify-center gap-2 rounded-md px-3 text-[11px] font-bold sm:px-5 sm:text-[13px]">
+              <span className="sm:hidden">{isAdmin ? "Admin" : user ? "Profile" : "Join as talent"}</span>
+              <span className="hidden sm:inline">{isAdmin ? "Admin panel" : user ? "My Creator Profile" : "Join as talent"}</span>
               <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </div>

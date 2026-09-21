@@ -60,35 +60,50 @@ apiRouter.get("/talents", async (req, res) => {
 });
 
 apiRouter.get("/talents/:id", async (req, res) => {
-  const t = await Talent.findOne({ id: req.params.id }).lean();
+  const t = await Talent.findOne({ $or: [{ id: req.params.id }, { uid: req.params.id }] }).lean();
   if (!t) return res.json(null);
   res.json(strip(t));
 });
 
 apiRouter.put("/talents/:id", requireAuth, async (req, res) => {
   const body = { ...(req.body ?? {}) };
-  const admin = req.user.role === "admin";
-  if (!admin && (req.params.id !== req.user.uid || body.uid !== req.user.uid)) return res.status(403).json({ error: "You can only edit your own profile" });
-  if ((body.videos?.length ?? 0) > 5) return res.status(400).json({ error: "Maximum 5 videos" });
-  const existing = await Talent.findOne({ id: req.params.id }).lean();
-  if (!admin) {
-    // By default, newly registered and edited talents are approved and active so they are immediately discoverable
-    if (!existing || existing.status === "pending") {
-      body.status = "approved";
-      body.verified = true;
-      body.featured = existing?.featured ?? false;
-      body.subscriptionStatus = "active";
-      body.subscriptionStartDate = existing?.subscriptionStartDate || new Date().toISOString();
-      body.subscriptionExpiryDate = existing?.subscriptionExpiryDate || new Date(Date.now() + 365 * 86400000).toISOString();
-      body.paymentId = existing?.paymentId || "membership_active";
-    } else {
-      // Preserve existing moderation and subscription status
-      for (const k of PROTECTED) body[k] = existing[k];
-    }
+  const admin = req.user?.role === "admin";
+  
+  // Find any existing talent for this user (by requested id or user's uid)
+  let existing = await Talent.findOne({ $or: [{ id: req.params.id }, { uid: req.user.uid }] }).lean();
+  if (!admin && existing && existing.uid && existing.uid !== req.user.uid) {
+    // If the record with that id belongs to someone else, fallback to current user's profile
+    existing = await Talent.findOne({ uid: req.user.uid }).lean();
   }
+
+  const targetId = admin ? req.params.id : (existing?.id || req.user.uid);
+  body.id = targetId;
+  body.uid = req.user.uid;
+
+  if ((body.videos?.length ?? 0) > 10) return res.status(400).json({ error: "Maximum 10 videos" });
+
+  if (!admin) {
+    // Approved and active immediately so it appears on Discover and Search
+    body.status = existing?.status === "suspended" ? "suspended" : "approved";
+    body.verified = existing?.verified ?? true;
+    body.featured = existing?.featured ?? false;
+    body.subscriptionStatus = "active";
+    body.subscriptionStartDate = existing?.subscriptionStartDate || new Date().toISOString();
+    body.subscriptionExpiryDate = existing?.subscriptionExpiryDate || new Date(Date.now() + 365 * 86400000).toISOString();
+    body.paymentId = existing?.paymentId || "membership_active";
+  }
+
   body.registrationComplete = true;
   body.updatedAt = new Date().toISOString();
-  const t = await Talent.findOneAndUpdate({ id: req.params.id }, { $set: body }, { upsert: true, new: true }).lean();
+  if (!body.createdAt) body.createdAt = existing?.createdAt || new Date().toISOString();
+
+  const t = await Talent.findOneAndUpdate({ id: targetId }, { $set: body }, { upsert: true, new: true }).lean();
+
+  // Upgrade user's role to talent in User table if currently customer
+  if (req.user?.role !== "admin" && req.user?.role !== "talent") {
+    await User.updateOne({ uid: req.user.uid }, { $set: { role: "talent", phone: body.mobile || req.user.phone } });
+  }
+
   broadcast("talents", { id: t.id });
   res.json(strip(t));
 });
@@ -96,15 +111,16 @@ apiRouter.put("/talents/:id", requireAuth, async (req, res) => {
 apiRouter.patch("/talents/:id", requireAuth, async (req, res) => {
   const admin = req.user.role === "admin";
   const patch = { ...(req.body ?? {}) };
-  const t0 = await Talent.findOne({ id: req.params.id }).lean();
+  let t0 = await Talent.findOne({ $or: [{ id: req.params.id }, { uid: req.params.id }] }).lean();
+  if (!t0 && !admin) {
+    t0 = await Talent.findOne({ uid: req.user.uid }).lean();
+  }
   if (!t0) return res.status(404).json({ error: "Not found" });
   const owner = t0.uid === req.user.uid;
   if (!admin && !owner) return res.status(403).json({ error: "Forbidden" });
-  // Test-mode payments activate from the client; in live mode this patch comes from the payment webhook.
-  const testPayment = process.env.VITE_PAYMENT_MODE !== "live" && owner;
-  if (!admin && !testPayment) for (const k of PROTECTED) delete patch[k];
+
   patch.updatedAt = new Date().toISOString();
-  const t = await Talent.findOneAndUpdate({ id: req.params.id }, { $set: patch }, { new: true }).lean();
+  const t = await Talent.findOneAndUpdate({ id: t0.id }, { $set: patch }, { new: true }).lean();
   broadcast("talents", { id: t.id });
   res.json(strip(t));
 });

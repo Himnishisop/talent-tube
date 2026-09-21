@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Phone, MessageCircle, MapPin, Briefcase, Languages, Flag, Share2, EyeOff, Clapperboard, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Phone, MessageCircle, MapPin, Briefcase, Languages, Flag, Share2, EyeOff, Clapperboard, CheckCircle2, Pencil } from "lucide-react";
 import { useLang } from "@/context/LangContext";
 import { useAuth } from "@/context/AuthContext";
 import { useCategories } from "@/hooks/useCategories";
@@ -64,6 +64,24 @@ export function TalentProfilePage() {
       <button onClick={() => navigate(-1)} className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-slate-600">
         <ArrowLeft className="h-4 w-4" /> {t("back")}
       </button>
+
+      {isOwner && (
+        <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-neon/40 bg-neon/10 p-4 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-semibold text-heading">
+              This is how recruiters and casting directors see your profile on Talent Tube.
+            </span>
+          </div>
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-neon px-4 py-2 font-black text-canvas hover:bg-neon/90 transition shadow shrink-0"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Edit Profile in Studio
+          </Link>
+        </div>
+      )}
 
       {!isPubliclyVisible(talent) && (
         <div className="mb-3 rounded-xl bg-amber-50 p-3 text-xs font-medium text-amber-800">
