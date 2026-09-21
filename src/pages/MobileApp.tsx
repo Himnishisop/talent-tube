@@ -274,16 +274,17 @@ function AppRegister() {
         description: form.bio.trim() || `${form.fullName.trim()} · ${selectedCat?.name ?? "Artist"} based in ${form.city.trim()}.`,
         languages: existing?.languages ?? ["English"],
         videos: videoId ? [{ videoId, url: form.videoUrl.trim(), isBest: true }] : [],
-        status: existing?.status ?? "pending", verified: existing?.verified ?? false, featured: existing?.featured ?? false,
-        subscriptionStatus: existing?.subscriptionStatus ?? "pending",
-        subscriptionStartDate: existing?.subscriptionStartDate, subscriptionExpiryDate: existing?.subscriptionExpiryDate, paymentId: existing?.paymentId,
+        status: existing?.status === "suspended" ? "suspended" : "approved", verified: existing?.verified ?? true, featured: existing?.featured ?? false,
+        subscriptionStatus: "active",
+        subscriptionStartDate: existing?.subscriptionStartDate ?? now,
+        subscriptionExpiryDate: existing?.subscriptionExpiryDate ?? new Date(Date.now() + 365 * 86400000).toISOString(),
+        paymentId: existing?.paymentId ?? "membership_active",
         registrationComplete: true, createdAt: existing?.createdAt ?? now, updatedAt: now,
       };
       await dataService.saveTalent(talent);
       if (me.role !== "talent") { await dataService.saveUser({ ...me, role: "talent", phone: mobile }); await refreshUser(); }
       setExisting(talent);
-      if (talent.subscriptionStatus === "active") navigate("/app/live");
-      else setStep("pay");
+      navigate("/app/live");
     } catch (err) {
       alert(err instanceof Error ? err.message : "Something went wrong");
     } finally {

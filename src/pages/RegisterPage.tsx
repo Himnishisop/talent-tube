@@ -193,31 +193,25 @@ export function RegisterPage() {
         description: form.description.trim(),
         languages: form.languages,
         videos,
-        // Moderation & subscription fields are owned by admin/payment flows.
-        status: existing?.status ?? "pending",
-        verified: existing?.verified ?? false,
+        status: existing?.status === "suspended" ? "suspended" : "approved",
+        verified: existing?.verified ?? true,
         featured: existing?.featured ?? false,
-        rejectionReason: existing?.rejectionReason,
-        subscriptionStatus: existing?.subscriptionStatus ?? "pending",
-        subscriptionStartDate: existing?.subscriptionStartDate,
-        subscriptionExpiryDate: existing?.subscriptionExpiryDate,
-        paymentId: existing?.paymentId,
+        rejectionReason: undefined,
+        subscriptionStatus: "active",
+        subscriptionStartDate: existing?.subscriptionStartDate ?? now,
+        subscriptionExpiryDate: existing?.subscriptionExpiryDate ?? new Date(Date.now() + 365 * 86400000).toISOString(),
+        paymentId: existing?.paymentId ?? "membership_active",
         registrationComplete: true,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
       };
-      // Re-submitting after rejection puts the profile back in review
-      if (existing?.status === "rejected") {
-        talent.status = "pending";
-        talent.rejectionReason = undefined;
-      }
       await dataService.saveTalent(talent);
 
       if (user.role !== "talent") {
         await dataService.saveUser({ ...user, role: "talent", phone: talent.mobile });
         await refreshUser();
       }
-      navigate(existing && existing.subscriptionStatus === "active" ? "/dashboard" : "/subscribe", { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (err) {
       alert(err instanceof Error ? err.message : "Something went wrong");
     } finally {

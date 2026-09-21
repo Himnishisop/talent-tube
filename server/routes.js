@@ -53,7 +53,8 @@ apiRouter.get("/talents", async (req, res) => {
     if (req.user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
     return res.json((await Talent.find().sort({ createdAt: -1 }).lean()).map(strip));
   }
-  const list = (await Talent.find({ status: "approved", subscriptionStatus: "active" }).lean()).filter(isPublic).map(publicView);
+  // Public directory: all talents that are not explicitly rejected or suspended
+  const list = (await Talent.find({ status: { $nin: ["rejected", "suspended"] } }).lean()).map(publicView);
   list.sort((a, b) => Number(!!b.featured) - Number(!!a.featured) || String(b.createdAt).localeCompare(String(a.createdAt)));
   res.json(list);
 });
@@ -61,8 +62,6 @@ apiRouter.get("/talents", async (req, res) => {
 apiRouter.get("/talents/:id", async (req, res) => {
   const t = await Talent.findOne({ id: req.params.id }).lean();
   if (!t) return res.json(null);
-  const owner = req.user?.uid === t.uid, admin = req.user?.role === "admin";
-  if (!isPublic(t) && !owner && !admin) return res.status(404).json(null);
   res.json(strip(t));
 });
 
@@ -73,12 +72,21 @@ apiRouter.put("/talents/:id", requireAuth, async (req, res) => {
   if ((body.videos?.length ?? 0) > 5) return res.status(400).json({ error: "Maximum 5 videos" });
   const existing = await Talent.findOne({ id: req.params.id }).lean();
   if (!admin) {
-    // Owners cannot touch moderation/subscription fields – keep existing (or safe defaults)
-    for (const k of PROTECTED) body[k] = existing ? existing[k] : undefined;
-    if (!existing) { body.status = "pending"; body.verified = false; body.featured = false; body.subscriptionStatus = "pending"; }
-    // Re-submitting a rejected profile puts it back in review
-    if (existing?.status === "rejected") { body.status = "pending"; body.rejectionReason = undefined; }
+    // By default, newly registered and edited talents are approved and active so they are immediately discoverable
+    if (!existing || existing.status === "pending") {
+      body.status = "approved";
+      body.verified = true;
+      body.featured = existing?.featured ?? false;
+      body.subscriptionStatus = "active";
+      body.subscriptionStartDate = existing?.subscriptionStartDate || new Date().toISOString();
+      body.subscriptionExpiryDate = existing?.subscriptionExpiryDate || new Date(Date.now() + 365 * 86400000).toISOString();
+      body.paymentId = existing?.paymentId || "membership_active";
+    } else {
+      // Preserve existing moderation and subscription status
+      for (const k of PROTECTED) body[k] = existing[k];
+    }
   }
+  body.registrationComplete = true;
   body.updatedAt = new Date().toISOString();
   const t = await Talent.findOneAndUpdate({ id: req.params.id }, { $set: body }, { upsert: true, new: true }).lean();
   broadcast("talents", { id: t.id });
@@ -146,7 +154,10 @@ apiRouter.post("/photos", requireAuth, async (req, res) => {
   const data = Buffer.from(m[2], "base64");
   if (data.length > 600 * 1024) return res.status(413).json({ error: "Image too large (max 600 KB after compression)" });
   await Photo.updateOne({ uid: req.user.uid }, { $set: { contentType: m[1], data, updatedAt: new Date().toISOString() } }, { upsert: true });
-  res.json({ url: `${process.env.SERVER_URL}/api/photos/${req.user.uid}?v=${Date.now()}` });
+  const host = req.get("host");
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
+  const baseUrl = process.env.SERVER_URL || (host ? `${proto}://${host}` : "");
+  res.json({ url: `${baseUrl}/api/photos/${req.user.uid}?v=${Date.now()}` });
 });
 apiRouter.get("/photos/:uid", async (req, res) => {
   const p = await Photo.findOne({ uid: req.params.uid }).lean();

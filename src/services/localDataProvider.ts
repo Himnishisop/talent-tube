@@ -1,6 +1,5 @@
 import type { AppUser, Category, Payment, Report, Talent, TalentFilters } from "@/lib/types";
 import { DEFAULT_CATEGORIES } from "@/lib/constants";
-import { SAMPLE_PAYMENTS, SAMPLE_REPORTS, SAMPLE_TALENTS } from "@/lib/sampleData";
 import { applyTalentFilters, isPubliclyVisible, type DataProvider } from "./dataProvider";
 
 // ---------------------------------------------------------------------------
@@ -21,9 +20,6 @@ interface LocalDB {
 function seed(): LocalDB {
   const db: LocalDB = { users: {}, talents: {}, categories: {}, payments: {}, reports: {} };
   DEFAULT_CATEGORIES.forEach((c) => (db.categories[c.id] = c));
-  SAMPLE_TALENTS.forEach((t) => (db.talents[t.id] = t));
-  SAMPLE_PAYMENTS.forEach((p) => (db.payments[p.id] = p));
-  SAMPLE_REPORTS.forEach((r) => (db.reports[r.id] = r));
   return db;
 }
 
@@ -33,14 +29,17 @@ function load(): LocalDB {
     if (raw) {
       const saved = JSON.parse(raw) as LocalDB;
       let updated = false;
-      // Refresh only untouched demo portraits; keep user-created profiles and edits.
-      SAMPLE_TALENTS.forEach((sample) => {
-        const profile = saved.talents[sample.id];
-        if (profile?.photoURL?.startsWith("https://i.pravatar.cc/") && sample.photoURL?.includes("images.pexels.com")) {
-          profile.photoURL = sample.photoURL;
-          updated = true;
+
+      // Purge any legacy sample/demo profiles from local storage
+      if (saved.talents) {
+        for (const tid of Object.keys(saved.talents)) {
+          if (tid.startsWith("t_") || saved.talents[tid]?.fullName === "Priya Sharma" || saved.talents[tid]?.fullName === "Marcus Reed") {
+            delete saved.talents[tid];
+            updated = true;
+          }
         }
-      });
+      }
+
       // Add any newly shipped default categories (e.g. Karaoke Singer) to an
       // existing demo DB without touching admin-edited or custom ones.
       DEFAULT_CATEGORIES.forEach((cat) => {

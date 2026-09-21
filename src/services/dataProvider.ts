@@ -72,10 +72,9 @@ export function applyTalentFilters(talents: Talent[], f: TalentFilters = {}, cat
   });
 }
 
-/** A talent is publicly visible only when approved AND subscription active. */
+/** A talent is publicly visible unless explicitly rejected or suspended by moderation. */
 export function isPubliclyVisible(t: Talent): boolean {
-  if (t.status !== "approved" || t.subscriptionStatus !== "active") return false;
-  if (t.subscriptionExpiryDate && new Date(t.subscriptionExpiryDate).getTime() < Date.now()) return false;
+  if (t.status === "rejected" || t.status === "suspended") return false;
   return true;
 }
 

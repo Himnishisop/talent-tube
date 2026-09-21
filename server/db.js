@@ -75,8 +75,26 @@ export async function connectDb(uri) {
     throw new Error("MONGODB_URI environment variable is missing");
   }
   let cleanUri = String(uri).trim();
-  // If user included <password> with literal angle brackets, strip them automatically
-  cleanUri = cleanUri.replace(/:<([^>]+)>@/, ":$1@");
+  // Strip quotes if user wrapped the URI in quotes
+  cleanUri = cleanUri.replace(/^["']|["']$/g, "").trim();
+
+  // If user included <username> or <password> with literal angle brackets, strip them and encode
+  const authMatch = cleanUri.match(/^(mongodb(?:\+srv)?:\/\/)([^:]+):(.+?)@([^@]+)$/);
+  if (authMatch) {
+    const [, prefix, rawUser, rawPass, hostAndQuery] = authMatch;
+    let cleanUser = rawUser.replace(/^<|>$/g, "").trim();
+    let cleanPass = rawPass.replace(/^<|>$/g, "").trim();
+    try {
+      cleanUser = encodeURIComponent(decodeURIComponent(cleanUser));
+      cleanPass = encodeURIComponent(decodeURIComponent(cleanPass));
+    } catch {
+      cleanUser = encodeURIComponent(cleanUser);
+      cleanPass = encodeURIComponent(cleanPass);
+    }
+    cleanUri = `${prefix}${cleanUser}:${cleanPass}@${hostAndQuery}`;
+  } else {
+    cleanUri = cleanUri.replace(/:<([^>]+)>@/, ":$1@");
+  }
 
   if (mongoose.connection.readyState === 1) {
     return mongoose;
