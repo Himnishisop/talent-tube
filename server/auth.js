@@ -99,14 +99,29 @@ export const authRouter = Router();
 // ---- Email / password ------------------------------------------------------
 authRouter.post("/register", async (req, res) => {
   const { email, password, name } = req.body ?? {};
-  if (!email || !password || password.length < 6) return res.status(400).json({ error: "Email and a 6+ character password are required" });
-  const lower = String(email).toLowerCase();
-  if (await User.findOne({ email: lower })) return res.status(409).json({ error: "This email is already registered. Please sign in." });
+  if (!email || !password || password.length < 6) {
+    return res.status(400).json({ error: "Please enter a valid email and password with at least 6 characters." });
+  }
+  const lower = String(email).trim().toLowerCase();
+  const existing = await User.findOne({ email: lower }).select("+passwordHash");
+  if (existing) {
+    // If the account existed without passwordHash (e.g. earlier Google sign-in), let them set password directly
+    if (!existing.passwordHash) {
+      existing.passwordHash = await bcrypt.hash(password, 10);
+      if (name && (!existing.displayName || existing.displayName === lower.split("@")[0])) {
+        existing.displayName = name;
+      }
+      await existing.save();
+      return res.json({ token: signToken(existing), user: publicUser(existing) });
+    }
+    return res.status(409).json({ error: "An account with this email already exists. Please sign in." });
+  }
+
   const role = isAdminEmail(lower) ? "admin" : "talent";
   const user = await User.create({
     uid: uidFrom(lower),
     email: lower,
-    displayName: name || lower.split("@")[0],
+    displayName: name?.trim() || lower.split("@")[0],
     role,
     passwordHash: await bcrypt.hash(password, 10),
     createdAt: new Date().toISOString(),
@@ -116,14 +131,43 @@ authRouter.post("/register", async (req, res) => {
 
 authRouter.post("/login", async (req, res) => {
   const { email, password } = req.body ?? {};
-  const user = await User.findOne({ email: String(email ?? "").toLowerCase() }).select("+passwordHash");
-  if (!user?.passwordHash || !(await bcrypt.compare(password ?? "", user.passwordHash))) return res.status(401).json({ error: "Incorrect email or password." });
+  if (!email || !password) {
+    return res.status(400).json({ error: "Please enter your email and password." });
+  }
+  const lower = String(email).trim().toLowerCase();
+  const user = await User.findOne({ email: lower }).select("+passwordHash");
+  if (!user) {
+    return res.status(401).json({ error: "No account found with this email. Please create an account first." });
+  }
+  if (!user.passwordHash) {
+    return res.status(401).json({ error: "This account doesn't have a direct password yet. Switch to 'Create account' with this email to set a password, or use Google Sign-in." });
+  }
+  const match = await bcrypt.compare(password, user.passwordHash);
+  if (!match) {
+    return res.status(401).json({ error: "Incorrect password. Please verify and try again." });
+  }
+
   const expectedRole = isAdminEmail(user.email) ? "admin" : "talent";
   if (user.role !== expectedRole) {
     user.role = expectedRole;
     await user.save();
   }
   res.json({ token: signToken(user), user: publicUser(user) });
+});
+
+authRouter.post("/reset-password", async (req, res) => {
+  const { email, newPassword } = req.body ?? {};
+  if (!email || !newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: "Valid email and new password (6+ characters) are required." });
+  }
+  const lower = String(email).trim().toLowerCase();
+  const user = await User.findOne({ email: lower });
+  if (!user) {
+    return res.status(404).json({ error: "No account found with this email." });
+  }
+  user.passwordHash = await bcrypt.hash(newPassword, 10);
+  await user.save();
+  res.json({ success: true, message: "Password updated successfully! You can now log in with your new password." });
 });
 
 authRouter.get("/me", attachUser, requireAuth, (req, res) => res.json(publicUser(req.user)));

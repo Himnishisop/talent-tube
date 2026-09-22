@@ -9,8 +9,8 @@ import { applyTalentFilters, isPubliclyVisible, type DataProvider } from "./data
 // refreshed, so the App and Web interfaces stay in sync across all devices.
 // ---------------------------------------------------------------------------
 
-/** Compress to ≤320px JPEG so the photo fits comfortably in MongoDB. */
-function compressImage(file: File, size = 320): Promise<string> {
+/** Compress to clean 600px JPEG so Cloudinary gets high-resolution image to crop and optimize. */
+function compressImage(file: File, size = 600): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -21,7 +21,7 @@ function compressImage(file: File, size = 320): Promise<string> {
       const min = Math.min(img.width, img.height);
       ctx.drawImage(img, (img.width - min) / 2, (img.height - min) / 2, min, min, 0, 0, size, size);
       URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL("image/jpeg", 0.82));
+      resolve(canvas.toDataURL("image/jpeg", 0.88));
     };
     img.onerror = reject;
     img.src = url;

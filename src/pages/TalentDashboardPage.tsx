@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Film,
   Camera,
+  Upload,
   ArrowUpRight,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -660,9 +661,28 @@ function EditProfileModal({
   const [sameWhatsapp, setSameWhatsapp] = useState(talent.whatsapp === talent.mobile);
   const [saving, setSaving] = useState(false);
   const [avatarPresetOpen, setAvatarPresetOpen] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const selectedCategory = categories.find((c) => c.id === categoryId) || categories[0];
   const countryObj = getCountry(country);
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Please select a valid image file (JPEG, PNG, WEBP).");
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const uploadedUrl = await dataService.uploadProfilePhoto(talent.uid || talent.id, file);
+      setPhotoURL(uploadedUrl);
+    } catch (err: any) {
+      alert("Failed to upload image: " + (err?.message || "Please check connection"));
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   const toggleLanguage = (lang: string) => {
     if (languages.includes(lang)) {
@@ -724,19 +744,32 @@ function EditProfileModal({
 
         <form onSubmit={handleSave} className="space-y-4">
           {/* Avatar Photo Section */}
-          <div className="flex items-center gap-4 p-3 rounded-2xl bg-surface/50 border border-line">
-            <Avatar src={photoURL} name={fullName} size={64} className="ring-2 ring-neon" />
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold text-heading">Profile Photo</div>
-              <p className="text-[11px] text-muted">Paste an image link or choose an artist avatar</p>
-              <div className="flex gap-2 mt-1.5">
-                <button
-                  type="button"
-                  onClick={() => setAvatarPresetOpen(!avatarPresetOpen)}
-                  className="text-xs font-bold text-neon hover:underline"
-                >
-                  {avatarPresetOpen ? "Hide Presets" : "Choose Preset Avatar"}
-                </button>
+          <div className="p-3 rounded-2xl bg-surface/50 border border-line space-y-3">
+            <div className="flex items-center gap-4">
+              <Avatar src={photoURL} name={fullName} size={64} className="ring-2 ring-neon shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-bold text-heading">Profile Photo</div>
+                <p className="text-[11px] text-muted">Upload directly from device or choose a preset</p>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg bg-panel px-3 py-1.5 text-xs font-bold text-heading border border-line hover:border-neon transition">
+                    <Upload className="h-3.5 w-3.5 text-neon" />
+                    <span>{uploadingPhoto ? "Uploading…" : "Upload Photo"}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingPhoto}
+                      onChange={handlePhotoUpload}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setAvatarPresetOpen(!avatarPresetOpen)}
+                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold text-neon hover:bg-neon/10 transition"
+                  >
+                    {avatarPresetOpen ? "Hide Presets" : "Choose Preset"}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

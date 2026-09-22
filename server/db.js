@@ -7,11 +7,11 @@ const opts = { strict: false, versionKey: false, toJSON: { transform: (_d, r) =>
 
 const UserSchema = new mongoose.Schema({
   uid: { type: String, unique: true, index: true },
-  role: { type: String, enum: ["customer", "talent", "admin"], default: "customer" },
+  role: { type: String, enum: ["customer", "talent", "admin"], default: "talent" },
   displayName: String,
-  email: { type: String, index: true, sparse: true },
+  email: { type: String, index: { unique: true, sparse: true } },
   passwordHash: { type: String, select: false },
-  googleId: { type: String, index: true, sparse: true },
+  googleId: { type: String, index: { unique: true, sparse: true } },
   photoURL: String,
   phone: String,
   createdAt: String,
