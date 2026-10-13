@@ -14,28 +14,26 @@ import { useEffect, useState } from "react";
  * - Respects `prefers-reduced-motion`: lights stay static but still coloured.
  */
 // ---------------------------------------------------------------------------
-// Twinkling stars: tiny glowing dots scattered over the backdrop that fade in
-// and out on their own timings. Generated once with a seeded PRNG so the sky
-// is identical on every render/visit. Fewer stars on small screens.
+// Twinkling stars: lightweight, calm ambiance scattered over the backdrop.
+// 32 stars on desktop, 14 on mobile - ultra-lightweight for low-end CPUs and GPUs.
 // ---------------------------------------------------------------------------
-interface Star { x: number; y: number; size: number; delay: number; duration: number; bright: boolean; drift: number }
+interface Star { x: number; y: number; size: number; delay: number; duration: number; bright: boolean }
 
 function makeStars(count: number, seed = 7): Star[] {
   let s = seed;
   const rnd = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
   return Array.from({ length: count }, () => ({
-    x: rnd() * 100,
-    y: rnd() * 100,
-    size: 1 + rnd() * 2.2,          // 1 – 3.2px
-    delay: -rnd() * 12,             // negative → already mid-cycle on load
-    duration: 2.4 + rnd() * 5.5,    // 2.4 – 7.9s twinkle cycle
-    bright: rnd() > 0.78,           // ~22% get a neon/blue glow, rest are silver
-    drift: (rnd() - 0.5) * 14,      // slow vertical float in px
+    x: Math.round(rnd() * 98 + 1),
+    y: Math.round(rnd() * 96 + 2),
+    size: Math.round((1.2 + rnd() * 1.6) * 10) / 10,  // 1.2 – 2.8px
+    delay: -Math.round(rnd() * 8 * 10) / 10,
+    duration: Math.round((3.5 + rnd() * 4) * 10) / 10, // 3.5 – 7.5s calm twinkle
+    bright: rnd() > 0.8,                               // ~20% neon tint
   }));
 }
 
-const STARS_DESKTOP = makeStars(140);
-const STARS_MOBILE = STARS_DESKTOP.slice(0, 60);
+const STARS_DESKTOP = makeStars(32);
+const STARS_MOBILE = STARS_DESKTOP.slice(0, 14);
 
 function StarField() {
   const [stars, setStars] = useState<Star[]>(() => (typeof window !== "undefined" && window.innerWidth < 640 ? STARS_MOBILE : STARS_DESKTOP));
@@ -58,9 +56,8 @@ function StarField() {
             top: `${st.y}%`,
             width: st.size,
             height: st.size,
-            animationDelay: `${st.delay}s, ${st.delay}s`,
-            animationDuration: `${st.duration}s, ${st.duration * 3}s`,
-            ["--drift" as string]: `${st.drift}px`,
+            animationDelay: `${st.delay}s`,
+            animationDuration: `${st.duration}s`,
           }}
         />
       ))}

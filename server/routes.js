@@ -3,7 +3,7 @@
 import { Router } from "express";
 import { Talent, Category, Payment, Report, Photo, User } from "./db.js";
 import { attachUser, requireAuth, requireAdmin, publicUser } from "./auth.js";
-import { uploadToCloudinary, isCloudinaryConfigured } from "./cloudinary.js";
+import { uploadToR2, isR2Configured, getObjectFromR2 } from "./r2.js";
 
 // ---------------------------------------------------------------- realtime
 const clients = new Set();
@@ -202,7 +202,7 @@ apiRouter.get("/reports", requireAuth, requireAdmin, async (_req, res) => res.js
 apiRouter.post("/reports", async (req, res) => { await Report.create({ ...req.body, reporterUid: req.user?.uid }); res.json({ ok: true }); });
 apiRouter.patch("/reports/:id", requireAuth, requireAdmin, async (req, res) => { await Report.updateOne({ id: req.params.id }, { $set: req.body }); res.json({ ok: true }); });
 
-// Profile photos (Cloudinary CDN with automatic fallback to MongoDB storage) -
+// Profile photos (Cloudflare R2 storage with automatic fallback to MongoDB storage)
 apiRouter.post("/photos", requireAuth, async (req, res) => {
   const dataUrl = req.body?.dataUrl ?? "";
   const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(dataUrl);
@@ -210,40 +210,76 @@ apiRouter.post("/photos", requireAuth, async (req, res) => {
     return res.status(400).json({ error: "Expected a valid image data URL or image URL" });
   }
 
-  // 1. If Cloudinary is configured, upload to Cloudinary CDN
-  if (isCloudinaryConfigured) {
+  const host = req.get("host");
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
+  const baseUrl = process.env.SERVER_URL || (host ? `${proto}://${host}` : "");
+
+  // 1. If Cloudflare R2 is configured, upload downscaled image directly to R2
+  if (isR2Configured) {
     try {
-      const publicId = `profile_${req.user.uid}`;
-      const cdnUrl = await uploadToCloudinary(dataUrl, publicId);
+      let buffer;
+      let contentType = "image/jpeg";
+
+      if (m) {
+        contentType = m[1];
+        buffer = Buffer.from(m[2], "base64");
+      } else {
+        const resp = await fetch(dataUrl);
+        const arrayBuf = await resp.arrayBuffer();
+        buffer = Buffer.from(arrayBuf);
+        contentType = resp.headers.get("content-type") || "image/jpeg";
+      }
+
+      const ext = contentType.includes("webp") ? "webp" : contentType.includes("png") ? "png" : "jpg";
+      const key = `profiles/profile_${req.user.uid}.${ext}`;
+
+      const r2Url = await uploadToR2({
+        buffer,
+        contentType,
+        key,
+        baseUrl,
+      });
 
       // Keep user's photoURL in User collection synced
-      await User.updateOne({ uid: req.user.uid }, { $set: { photoURL: cdnUrl } });
+      await User.updateOne({ uid: req.user.uid }, { $set: { photoURL: r2Url } });
       // If talent profile exists for this user, keep that synced too
-      await Talent.updateOne({ uid: req.user.uid }, { $set: { photoURL: cdnUrl } });
+      await Talent.updateOne({ uid: req.user.uid }, { $set: { photoURL: r2Url } });
 
-      return res.json({ url: cdnUrl, provider: "cloudinary" });
+      return res.json({ url: r2Url, provider: "r2" });
     } catch (err) {
-      console.warn("[Cloudinary upload notice, falling back to local/Mongo storage]:", err?.message || err);
-      // Fallback seamlessly to MongoDB storage below if Cloudinary API call failed
+      console.warn("[Cloudflare R2 upload notice, falling back to local/Mongo storage]:", err?.message || err);
+      // Fallback seamlessly to MongoDB storage below if R2 API call failed
     }
   }
 
-  // 2. Storage in MongoDB fallback (if Cloudinary key isn't set or network error occurred)
+  // 2. Storage in MongoDB fallback (if R2 credentials are not set or network error occurred)
   if (!m) {
     return res.status(400).json({ error: "Expected a base64 image data URL" });
   }
   const data = Buffer.from(m[2], "base64");
   if (data.length > 900 * 1024) return res.status(413).json({ error: "Image too large (max 900 KB)" });
   await Photo.updateOne({ uid: req.user.uid }, { $set: { contentType: m[1], data, updatedAt: new Date().toISOString() } }, { upsert: true });
-  const host = req.get("host");
-  const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
-  const baseUrl = process.env.SERVER_URL || (host ? `${proto}://${host}` : "");
   const fallbackUrl = `${baseUrl}/api/photos/${req.user.uid}?v=${Date.now()}`;
 
   await User.updateOne({ uid: req.user.uid }, { $set: { photoURL: fallbackUrl } });
   await Talent.updateOne({ uid: req.user.uid }, { $set: { photoURL: fallbackUrl } });
 
   res.json({ url: fallbackUrl, provider: "mongodb" });
+});
+
+// Stream from Cloudflare R2 when public URL is not configured
+apiRouter.get("/photos/r2/{*key}", async (req, res) => {
+  try {
+    const rawKey = req.params.key;
+    const key = Array.isArray(rawKey) ? rawKey.join("/") : String(rawKey || "");
+    const obj = await getObjectFromR2(key);
+    if (!obj || !obj.stream) return res.status(404).end();
+    res.set("Content-Type", obj.contentType).set("Cache-Control", "public, max-age=31536000, immutable");
+    obj.stream.pipe(res);
+  } catch (err) {
+    console.error("Error serving R2 photo:", err?.message || err);
+    res.status(404).end();
+  }
 });
 apiRouter.get("/photos/:uid", async (req, res) => {
   const p = await Photo.findOne({ uid: req.params.uid }).lean();

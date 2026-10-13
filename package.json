@@ -11,10 +11,10 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1140.0",
     "@fontsource-variable/manrope": "^5.3.0",
     "@fontsource-variable/space-grotesk": "^5.3.0",
     "bcryptjs": "^3.0.3",
-    "cloudinary": "^2.11.0",
     "clsx": "2.1.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

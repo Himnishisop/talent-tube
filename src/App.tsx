@@ -14,6 +14,9 @@ import { SubscriptionPage } from "@/pages/SubscriptionPage";
 import { AdminLoginPage } from "@/pages/AdminLoginPage";
 import { AdminDashboardPage } from "@/pages/AdminDashboardPage";
 import { AuthCallbackPage } from "@/pages/AuthCallbackPage";
+import { ContactPage } from "@/pages/ContactPage";
+import { PrivacyPolicyPage } from "@/pages/PrivacyPolicyPage";
+import { TermsPage } from "@/pages/TermsPage";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { MobileApp } from "@/pages/MobileApp";
 import { PrototypeHub } from "@/pages/PrototypeHub";
@@ -44,6 +47,11 @@ export default function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/privacy" element={<PrivacyPolicyPage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/terms-of-service" element={<TermsPage />} />
 
               {/* Creator Studio & Profile */}
               <Route element={<RequireAuth roles={["talent", "customer", "admin"]} />}>

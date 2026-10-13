@@ -87,3 +87,29 @@ export const REPORT_REASONS = [
 export const APP_NAME = "Talent Tube";
 export const APP_TAGLINE = "Showcase your talent. Get endless opportunities.";
 export const APP_ICON_URL = "https://i.ibb.co/FLb3pqDf/Whats-App-Image-2026-09-15-at-12-20-41-AM.jpg";
+
+/**
+ * Official government and corporate registration details.
+ * Must match Aadhaar Udyam Certificate, Google Play Console Organization profile,
+ * and Dun & Bradstreet (D-U-N-S) records exactly.
+ */
+export const LEGAL_ENTITY = {
+  businessName: "RHSM ENTERPRISES",
+  brandName: "Talent Tube",
+  registeredAddress: "Villa 6, Spanish villa, Cluster 4, Naigaon east, Chinchoti, Palghar, Maharashtra - 401208",
+  addressLines: {
+    line1: "Villa 6, Spanish villa, Cluster 4",
+    line2: "Naigaon east, Chinchoti",
+    district: "Palghar",
+    state: "Maharashtra",
+    pincode: "401208",
+    country: "India",
+  },
+  email: "contact@talenttube.world",
+  domain: "talenttube.world",
+  websiteUrl: "https://talenttube.world",
+  certificateType: "Aadhaar Udyam Certificate (Govt. of India)",
+  grievanceOfficer: "RHSM ENTERPRISES Legal & Compliance Desk",
+  operatingHours: "Monday – Saturday: 10:00 AM – 7:00 PM IST",
+};
+

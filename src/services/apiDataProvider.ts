@@ -9,21 +9,43 @@ import { applyTalentFilters, isPubliclyVisible, type DataProvider } from "./data
 // refreshed, so the App and Web interfaces stay in sync across all devices.
 // ---------------------------------------------------------------------------
 
-/** Compress to clean 600px JPEG so Cloudinary gets high-resolution image to crop and optimize. */
-function compressImage(file: File, size = 600): Promise<string> {
+/**
+ * Downscale and compress image to a space-efficient 400x400 JPEG/WebP before uploading.
+ * This saves storage and bandwidth on Cloudflare R2 while preserving crisp visual detail.
+ */
+function downscaleImage(file: File, size = 400): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      canvas.width = size; canvas.height = size;
-      const ctx = canvas.getContext("2d")!;
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        URL.revokeObjectURL(url);
+        return reject(new Error("Failed to get canvas 2d context"));
+      }
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+
+      // Square crop centered
       const min = Math.min(img.width, img.height);
       ctx.drawImage(img, (img.width - min) / 2, (img.height - min) / 2, min, min, 0, 0, size, size);
       URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL("image/jpeg", 0.88));
+
+      // Check if browser supports WebP canvas encoding for maximum storage savings
+      const webpData = canvas.toDataURL("image/webp", 0.82);
+      if (webpData.startsWith("data:image/webp")) {
+        resolve(webpData);
+      } else {
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      }
     };
-    img.onerror = reject;
+    img.onerror = (err) => {
+      URL.revokeObjectURL(url);
+      reject(err);
+    };
     img.src = url;
   });
 }
@@ -86,7 +108,7 @@ export class ApiDataProvider implements DataProvider {
   async updateReport(id: string, patch: Partial<Report>) { await api(`/api/reports/${id}`, { method: "PATCH", json: patch }); }
 
   async uploadProfilePhoto(_uid: string, file: File) {
-    const dataUrl = await compressImage(file);
+    const dataUrl = await downscaleImage(file);
     const { url } = await api<{ url: string }>("/api/photos", { method: "POST", json: { dataUrl } });
     return url;
   }

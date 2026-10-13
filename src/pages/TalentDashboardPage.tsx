@@ -614,7 +614,7 @@ export function TalentDashboardPage() {
 
       {/* WATCH VIDEO PREVIEW MODAL */}
       {watchingVideo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 animate-fade-in">
           <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-line bg-panel shadow-2xl">
             <div className="flex items-center justify-between border-b border-line p-4">
               <h3 className="font-bold text-sm text-heading truncate">{watchingVideo.title || "Video Preview"}</h3>
@@ -733,7 +733,7 @@ function EditProfileModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-4 backdrop-blur-md overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3 sm:p-4 overflow-y-auto">
       <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl border border-line bg-panel p-5 sm:p-7 shadow-2xl space-y-5 animate-fade-in my-auto">
         <div className="flex items-center justify-between border-b border-line pb-3">
           <h2 className="text-xl font-black text-heading">Edit Creator Profile</h2>
@@ -1050,7 +1050,7 @@ function AddVideoModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
       <div className="w-full max-w-lg rounded-3xl border border-line bg-panel p-6 shadow-2xl space-y-4 animate-fade-in">
         <div className="flex items-center justify-between border-b border-line pb-3">
           <h2 className="text-lg font-black text-heading">Add Performance Video</h2>

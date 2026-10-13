@@ -8,6 +8,7 @@ import { connectDb, Category, Talent, User } from "./db.js";
 import { authRouter } from "./auth.js";
 import { youtubeRouter } from "./youtube.js";
 import { apiRouter } from "./routes.js";
+import { isR2Configured } from "./r2.js";
 
 // Port 3000 is hardcoded by infrastructure and reverse proxy
 const PORT = 3000;
@@ -40,6 +41,7 @@ app.get("/api/health", async (_req, res) => {
     },
     googleAuth: !!process.env.GOOGLE_CLIENT_ID,
     youtubeApi: !!process.env.GOOGLE_CLIENT_ID,
+    r2Storage: isR2Configured,
   });
 });
 
@@ -47,6 +49,13 @@ app.get("/api/health", async (_req, res) => {
 app.use("/api/auth", authRouter);
 app.use("/api/youtube", youtubeRouter);
 app.use("/api", apiRouter);
+
+// Google Search Console HTML file verification handler
+// Responds to any /google[hash].html with the standard verification string required by Google
+app.get(/^\/google([a-z0-9]+)\.html$/i, (req, res) => {
+  const filename = req.path.replace(/^\//, "");
+  res.type("text/html").send(`google-site-verification: ${filename}`);
+});
 
 // Frontend Vite Integration (Single port 3000 for both API and Frontend)
 if (process.env.NODE_ENV !== "production") {

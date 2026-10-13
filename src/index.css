@@ -1,7 +1,6 @@
 @import "tailwindcss";
 
-/* Registered so the stage-light hue can be animated smoothly between keyframes.
-   Browsers without @property keep each light's initial colour (still looks good). */
+/* Registered so the stage-light hue can be animated smoothly between keyframes where supported */
 @property --hue {
   syntax: "<number>";
   inherits: false;
@@ -151,7 +150,7 @@ input:-webkit-autofill:focus {
 }
 
 /* ------------------------------------------------------------------ */
-/* Stage lighting backdrop                                             */
+/* Stage lighting backdrop - Ultra-Smooth, Low-End Optimized          */
 /* ------------------------------------------------------------------ */
 .app-stage { position: relative; isolation: isolate; }
 .app-stage > *:not(.stage-lights) { position: relative; z-index: 1; }
@@ -164,159 +163,199 @@ input:-webkit-autofill:focus {
   pointer-events: none;
   background: var(--color-canvas);
   contain: strict;
+  transform: translateZ(0);
 }
 
-/* Each light is a large soft radial glow; --hue drives its colour and is
-   animated through a stage palette. Blur + screen blending make overlapping
-   lights mix like real gels on a dark stage. */
+/* Lights use pure radial gradients that feather to transparent smoothly,
+   avoiding live CPU/GPU filter blur passes that choke budget GPUs.
+   Only hardware-accelerated transform & opacity are animated. */
 .stage-light {
   position: absolute;
-  width: 62vmax;
-  height: 62vmax;
+  width: 55vmax;
+  height: 55vmax;
   border-radius: 50%;
-  background: radial-gradient(circle at center, hsl(var(--hue) 100% 62% / .55) 0%, hsl(var(--hue) 100% 55% / .22) 32%, transparent 68%);
-  filter: blur(40px) saturate(1.2);
   mix-blend-mode: screen;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0);
   will-change: transform, opacity;
   animation:
-    light-hue var(--hue-duration, 22s) linear infinite,
-    light-drift var(--drift-duration, 34s) ease-in-out infinite alternate,
-    light-breathe var(--breathe-duration, 7s) ease-in-out infinite;
-  animation-delay: var(--delay, 0s), var(--delay, 0s), var(--delay, 0s);
+    light-drift var(--drift-duration, 32s) ease-in-out infinite alternate,
+    light-breathe var(--breathe-duration, 8s) ease-in-out infinite alternate;
+  animation-delay: var(--delay, 0s), var(--delay, 0s);
 }
 
-/* Colour journeys: neon green → cyan → electric blue → violet → magenta → amber → back.
-   Each light starts at a different point of the cycle so they never match. */
-.stage-light--1 { --hue: 88;  --delay: 0s;    --hue-duration: 24s; --drift-duration: 38s; --breathe-duration: 6.5s; top: -22vmax; left: -18vmax; }
-.stage-light--2 { --hue: 205; --delay: -6s;   --hue-duration: 27s; --drift-duration: 31s; --breathe-duration: 8s;   top: -12vmax; right: -24vmax; }
-.stage-light--3 { --hue: 300; --delay: -13s;  --hue-duration: 30s; --drift-duration: 42s; --breathe-duration: 7.5s; bottom: -26vmax; left: 8vmax; width: 70vmax; height: 70vmax; }
-.stage-light--4 { --hue: 32;  --delay: -19s;  --hue-duration: 25s; --drift-duration: 36s; --breathe-duration: 9s;   bottom: -18vmax; right: -14vmax; }
-.stage-light--5 { --hue: 165; --delay: -9s;   --hue-duration: 33s; --drift-duration: 29s; --breathe-duration: 5.8s; top: 30%; left: 35%; width: 46vmax; height: 46vmax; opacity: .7; }
-
-@keyframes light-hue {
-  0%   { --hue: 88; }   /* neon green  */
-  18%  { --hue: 175; }  /* cyan        */
-  36%  { --hue: 215; }  /* electric blue */
-  54%  { --hue: 268; }  /* violet      */
-  70%  { --hue: 318; }  /* magenta     */
-  86%  { --hue: 30; }   /* amber       */
-  100% { --hue: 88; }
+/* Curated stage colors with smooth built-in radial dropoff */
+.stage-light--1 {
+  /* Electric neon green/lime */
+  background: radial-gradient(circle at center, rgba(182, 255, 59, 0.42) 0%, rgba(182, 255, 59, 0.18) 35%, rgba(182, 255, 59, 0.04) 60%, transparent 75%);
+  --delay: 0s;
+  --drift-duration: 36s;
+  --breathe-duration: 8s;
+  top: -15vmax;
+  left: -12vmax;
 }
+
+.stage-light--2 {
+  /* Vivid azure / electric blue */
+  background: radial-gradient(circle at center, rgba(56, 189, 248, 0.38) 0%, rgba(56, 189, 248, 0.16) 38%, rgba(56, 189, 248, 0.03) 62%, transparent 75%);
+  --delay: -7s;
+  --drift-duration: 30s;
+  --breathe-duration: 9.5s;
+  top: -10vmax;
+  right: -15vmax;
+}
+
+.stage-light--3 {
+  /* Violet / Magenta */
+  background: radial-gradient(circle at center, rgba(217, 70, 239, 0.32) 0%, rgba(217, 70, 239, 0.14) 40%, rgba(217, 70, 239, 0.03) 65%, transparent 78%);
+  --delay: -14s;
+  --drift-duration: 40s;
+  --breathe-duration: 9s;
+  bottom: -20vmax;
+  left: 5vmax;
+  width: 65vmax;
+  height: 65vmax;
+}
+
+.stage-light--4 {
+  /* Warm amber / gold */
+  background: radial-gradient(circle at center, rgba(245, 158, 11, 0.28) 0%, rgba(245, 158, 11, 0.12) 38%, rgba(245, 158, 11, 0.02) 62%, transparent 75%);
+  --delay: -21s;
+  --drift-duration: 34s;
+  --breathe-duration: 10s;
+  bottom: -15vmax;
+  right: -10vmax;
+}
+
+.stage-light--5 {
+  /* Cyan / teal center glow */
+  background: radial-gradient(circle at center, rgba(20, 184, 166, 0.32) 0%, rgba(20, 184, 166, 0.12) 36%, transparent 70%);
+  --delay: -11s;
+  --drift-duration: 28s;
+  --breathe-duration: 7.5s;
+  top: 25%;
+  left: 32%;
+  width: 44vmax;
+  height: 44vmax;
+}
+
+/* Silky, non-jarring slow orbital drift */
 @keyframes light-drift {
   0%   { transform: translate3d(0, 0, 0) scale(1); }
-  33%  { transform: translate3d(9vmax, 6vmax, 0) scale(1.08); }
-  66%  { transform: translate3d(-6vmax, 10vmax, 0) scale(.94); }
-  100% { transform: translate3d(4vmax, -7vmax, 0) scale(1.05); }
-}
-@keyframes light-breathe {
-  0%, 100% { opacity: .75; }
-  50%      { opacity: 1; }
+  50%  { transform: translate3d(5vmax, 4vmax, 0) scale(1.04); }
+  100% { transform: translate3d(-4vmax, 6vmax, 0) scale(0.96); }
 }
 
-/* Two slow sweeping beams, like moving-head fixtures panning across the stage. */
+/* Gentle, smooth breathe without abrupt opacity jumps */
+@keyframes light-breathe {
+  0%   { opacity: 0.72; }
+  100% { opacity: 0.98; }
+}
+
+/* Sweeping stage beam: smooth continuous pan without flickering */
 .stage-beam {
   position: absolute;
-  top: -30%;
-  width: 22vmax;
-  height: 160%;
-  background: linear-gradient(180deg, hsl(var(--hue) 100% 70% / .28) 0%, hsl(var(--hue) 100% 65% / .08) 45%, transparent 100%);
-  filter: blur(28px);
+  top: -25%;
+  width: 20vmax;
+  height: 150%;
   mix-blend-mode: screen;
   transform-origin: 50% 0%;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0);
   will-change: transform, opacity;
   animation:
-    light-hue var(--hue-duration, 26s) linear infinite,
-    beam-sweep var(--sweep-duration, 19s) ease-in-out infinite alternate,
-    beam-flicker 11s ease-in-out infinite;
-  animation-delay: var(--delay, 0s), var(--delay, 0s), var(--delay, 0s);
+    beam-sweep var(--sweep-duration, 22s) ease-in-out infinite alternate,
+    beam-steady 12s ease-in-out infinite alternate;
+  animation-delay: var(--delay, 0s), var(--delay, 0s);
 }
-.stage-beam--left  { --hue: 120; --delay: -4s;  --hue-duration: 28s; --sweep-duration: 21s; left: 8%; }
-.stage-beam--right { --hue: 230; --delay: -12s; --hue-duration: 23s; --sweep-duration: 17s; right: 6%; }
+
+.stage-beam--left {
+  background: linear-gradient(180deg, rgba(182, 255, 59, 0.16) 0%, rgba(56, 189, 248, 0.07) 45%, transparent 95%);
+  --delay: -3s;
+  --sweep-duration: 24s;
+  left: 10%;
+}
+
+.stage-beam--right {
+  background: linear-gradient(180deg, rgba(147, 51, 234, 0.15) 0%, rgba(56, 189, 248, 0.06) 45%, transparent 95%);
+  --delay: -10s;
+  --sweep-duration: 20s;
+  right: 8%;
+}
 
 @keyframes beam-sweep {
-  0%   { transform: rotate(-18deg) translateX(-6vmax); }
-  100% { transform: rotate(16deg) translateX(8vmax); }
-}
-@keyframes beam-flicker {
-  0%, 100% { opacity: .55; }
-  40%      { opacity: .9; }
-  55%      { opacity: .7; }
-  70%      { opacity: 1; }
+  0%   { transform: rotate(-14deg) translateX(-4vmax); }
+  100% { transform: rotate(12deg) translateX(5vmax); }
 }
 
-/* Atmospheric haze keeps the lights soft and the UI readable. */
+/* Steady, subtle ambient sway instead of choppy flicker */
+@keyframes beam-steady {
+  0%   { opacity: 0.55; }
+  100% { opacity: 0.85; }
+}
+
+/* Atmospheric haze for depth without blurring cost */
 .stage-haze {
   position: absolute;
   inset: 0;
+  pointer-events: none;
   background:
-    radial-gradient(ellipse at 50% 0%, transparent 0%, rgb(8 15 30 / .35) 70%),
-    linear-gradient(180deg, rgb(8 15 30 / .18) 0%, rgb(8 15 30 / .55) 100%);
+    radial-gradient(ellipse at 50% 0%, transparent 20%, rgb(8 15 30 / 0.4) 80%),
+    linear-gradient(180deg, transparent 0%, rgb(8 15 30 / 0.6) 100%);
 }
 
-/* Twinkling stars ---------------------------------------------------- */
-.star-field { position: absolute; inset: 0; overflow: hidden; }
+/* Twinkling stars: lightweight, smooth fade, low CPU/GPU impact */
+.star-field { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .star {
   position: absolute;
   border-radius: 50%;
-  background: #e9f0ff;
-  box-shadow: 0 0 6px 1px rgb(233 240 255 / .55);
+  background: #ffffff;
+  box-shadow: 0 0 3px rgba(255, 255, 255, 0.8);
   opacity: 0;
   will-change: opacity, transform;
-  animation-name: star-twinkle, star-drift;
-  animation-timing-function: ease-in-out, ease-in-out;
-  animation-iteration-count: infinite, infinite;
-  animation-direction: normal, alternate;
+  animation: star-twinkle var(--duration, 4s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
 }
 .star--bright {
   background: var(--color-neon);
-  box-shadow: 0 0 8px 2px rgb(182 255 59 / .55), 0 0 18px 4px rgb(182 255 59 / .2);
-}
-.star--bright:nth-child(3n) {
-  background: #8fd6ff;
-  box-shadow: 0 0 8px 2px rgb(143 214 255 / .55), 0 0 18px 4px rgb(143 214 255 / .2);
-}
-/* Appear → shine → disappear, with a short sparkle spike near the peak */
-@keyframes star-twinkle {
-  0%   { opacity: 0;   transform: scale(.4); }
-  35%  { opacity: .9;  transform: scale(1); }
-  45%  { opacity: 1;   transform: scale(1.6); }
-  55%  { opacity: .85; transform: scale(1); }
-  80%  { opacity: .3;  transform: scale(.8); }
-  100% { opacity: 0;   transform: scale(.4); }
-}
-@keyframes star-drift {
-  from { translate: 0 0; }
-  to   { translate: 0 var(--drift, 0px); }
+  box-shadow: 0 0 5px rgba(182, 255, 59, 0.9);
 }
 
-/* Pause everything while the tab is hidden (battery). */
+@keyframes star-twinkle {
+  0%   { opacity: 0.05; transform: scale(0.7); }
+  50%  { opacity: 0.85; transform: scale(1.15); }
+  100% { opacity: 0.05; transform: scale(0.7); }
+}
+
+/* Pause everything while the tab is hidden (battery & background efficiency) */
 .stage-lights--paused .stage-light,
 .stage-lights--paused .stage-beam,
 .stage-lights--paused .star { animation-play-state: paused; }
 
-/* Let the light show through page surfaces without hurting contrast. */
+/* Let stage light seamlessly show through page surfaces without expensive live backdrop blur */
 .app-stage header,
 .app-stage footer,
-.app-stage nav[aria-label="Mobile navigation"] { background-color: rgb(8 15 30 / .82) !important; }
+.app-stage nav[aria-label="Mobile navigation"] { background-color: rgb(8 15 30 / 0.92) !important; }
 [data-theme="option-b"] .app-stage .bg-white,
-.app-stage .bg-panel { background-color: rgb(16 28 48 / .78); backdrop-filter: blur(8px); }
+.app-stage .bg-panel { background-color: rgb(16 28 48 / 0.88); }
 .app-stage .bg-canvas { background-color: transparent; }
 .app-stage .talent-hero { background: transparent; }
 .app-stage .spotlight-section,
 .app-stage .location-section,
-.app-stage .creator-section { background: rgb(12 23 41 / .55); backdrop-filter: blur(6px); }
+.app-stage .creator-section { background: rgb(12 23 41 / 0.75); }
 
-/* Smaller, lighter effect on phones (fewer pixels to blur). */
+/* Low-end mobile devices optimization: fewer lights, zero beams, hardware-friendly */
 @media (max-width: 639px) {
-  .stage-light { filter: blur(28px) saturate(1.15); width: 80vmax; height: 80vmax; }
+  .stage-light { width: 75vmax; height: 75vmax; }
+  .stage-light--4,
   .stage-light--5 { display: none; }
   .stage-beam { display: none; }
 }
 
-/* Reduced motion: keep the coloured ambience, drop the movement/flicker. */
+/* Reduced motion: keep the atmosphere, eliminate movement */
 @media (prefers-reduced-motion: reduce) {
-  .stage-light, .stage-beam { animation: none !important; opacity: .8; }
-  .star { animation: none !important; opacity: .55; transform: none; }
+  .stage-light, .stage-beam { animation: none !important; opacity: 0.8; }
+  .star { animation: none !important; opacity: 0.45; transform: none; }
 }
 
 /* ------------------------------------------------------------------ */
@@ -329,8 +368,7 @@ input:-webkit-autofill:focus {
   max-width: 480px;
   margin-inline: auto;
   padding-bottom: calc(76px + env(safe-area-inset-bottom));
-  background: rgb(8 15 30 / .72);
-  backdrop-filter: blur(10px);
+  background: rgb(8 15 30 / .95);
 }
 @media (min-width: 640px) {
   .mapp { border-inline: 1px solid var(--color-line); box-shadow: 0 0 80px rgb(0 0 0 / .45); }
@@ -340,7 +378,7 @@ input:-webkit-autofill:focus {
   position: sticky; top: 0; z-index: 5;
   display: flex; align-items: center; gap: 12px;
   margin: -12px -16px 16px; padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
-  background: rgb(8 15 30 / .9); backdrop-filter: blur(12px);
+  background: rgb(8 15 30 / .98);
   border-bottom: 1px solid var(--color-line);
 }
 .mapp-hero { padding: 8px 0 18px; }
@@ -372,7 +410,7 @@ input:-webkit-autofill:focus {
   z-index: 40; width: 100%; max-width: 480px;
   display: grid; grid-template-columns: repeat(3, 1fr);
   padding-bottom: env(safe-area-inset-bottom);
-  background: rgb(8 15 30 / .92); backdrop-filter: blur(14px);
+  background: rgb(8 15 30 / .98);
   border-top: 1px solid var(--color-line);
 }
 .mapp-tab {
@@ -386,7 +424,7 @@ input:-webkit-autofill:focus {
 /* ------------------------------------------------------------------ */
 .fsp-backdrop {
   position: fixed; inset: 0; z-index: 70;
-  background: rgb(4 8 18 / .82); backdrop-filter: blur(6px);
+  background: rgb(4 8 18 / .9);
   opacity: 0; pointer-events: none; transition: opacity .35s ease;
 }
 .fsp-backdrop--on { opacity: 1; pointer-events: auto; }
@@ -460,7 +498,7 @@ input:-webkit-autofill:focus {
   position: absolute; top: 8px;
   display: inline-flex; align-items: center; justify-content: center;
   width: 32px; height: 32px; border-radius: 50%;
-  background: rgb(0 0 0 / .55); color: #fff; backdrop-filter: blur(4px);
+  background: rgb(0 0 0 / .75); color: #fff;
 }
 .fsp-icon--tl { left: 8px; }
 .fsp-icon--tr { right: 8px; }
@@ -474,8 +512,8 @@ input:-webkit-autofill:focus {
   position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 12px; z-index: 2;
   display: inline-flex; align-items: center; justify-content: center;
   width: 44px; height: 44px; border-radius: 50%;
-  background: rgb(0 0 0 / .6); color: #fff; backdrop-filter: blur(6px);
-  border: 1px solid rgb(255 255 255 / .15);
+  background: rgb(0 0 0 / .8); color: #fff;
+  border: 1px solid rgb(255 255 255 / .2);
 }
 .fsp-close:hover { background: var(--color-neon); color: var(--color-canvas); }
 
